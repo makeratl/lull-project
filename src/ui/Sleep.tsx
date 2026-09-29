@@ -18,13 +18,16 @@ export function Sleep({ v, togglePlay, goDim, openSheet, active }: { v: ViewMode
           class={`halo${v.playing ? ' on' : ''}`}
           style={{ animation: v.playing ? `lullBreath ${v.haloPeriod}s ease-in-out infinite` : 'none' }}
         />
-        <button class="moon" onClick={togglePlay} aria-label={v.playing ? 'Pause' : 'Play'}>
+        <button class={`moon moon-surface${v.playing ? ' playing' : ''}`} onClick={togglePlay} aria-label={v.playing ? 'Pause' : 'Play'}>
           {v.playing ? (
             <span class="pause"><span /><span /></span>
           ) : (
             <span class="play" />
           )}
         </button>
+        <div class={`water${v.playing ? ' on' : ''}`} style={{ '--period': `${v.haloPeriod}s` }} aria-hidden="true">
+          <span /><span /><span /><span />
+        </div>
       </div>
       <div class="nowplaying">
         <span class="mix-label">{v.mixLabel}</span>

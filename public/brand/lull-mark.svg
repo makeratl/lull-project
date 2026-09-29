@@ -1,16 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-  <radialGradient id="i-m" cx="38%" cy="34%" r="70%">
+  <radialGradient id="m-m" cx="38%" cy="34%" r="70%">
     <stop offset="0" stop-color="#f5f7fb"/><stop offset=".58" stop-color="#cfd8e6"/><stop offset="1" stop-color="#aeb9cc"/>
   </radialGradient>
-  <radialGradient id="i-g" cx="50%" cy="50%" r="50%">
+  <radialGradient id="m-g" cx="50%" cy="50%" r="50%">
     <stop offset=".45" stop-color="#cdd8ea" stop-opacity=".16"/><stop offset="1" stop-color="#cdd8ea" stop-opacity="0"/>
   </radialGradient>
-  <clipPath id="i-c"><rect x="-2000" y="-2000" width="4512" height="2318"/></clipPath></defs>
-  <rect width="512" height="512" fill="#11141b"/>
+  <clipPath id="m-c"><rect x="-2000" y="-2000" width="4512" height="2318"/></clipPath></defs>
+  
   <g transform="translate(256 256) scale(1) translate(-256 -256)">
-  <circle cx="256" cy="250" r="200" fill="url(#i-g)"/>
-  <circle cx="256" cy="232" r="120" fill="url(#i-m)" clip-path="url(#i-c)"/>
+  <circle cx="256" cy="250" r="200" fill="url(#m-g)"/>
+  <circle cx="256" cy="232" r="120" fill="url(#m-m)" clip-path="url(#m-c)"/>
   <line x1="60" x2="452" y1="318" y2="318" stroke="#cdd8ea" stroke-width="9" stroke-linecap="round" opacity=".75"/>
   <line x1="156" x2="356" y1="350" y2="350" stroke="#cdd8ea" stroke-width="9" stroke-linecap="round" opacity="0.5"/><line x1="181" x2="331" y1="374" y2="374" stroke="#cdd8ea" stroke-width="9" stroke-linecap="round" opacity="0.34"/><line x1="208" x2="304" y1="398" y2="398" stroke="#cdd8ea" stroke-width="9" stroke-linecap="round" opacity="0.2"/><line x1="234" x2="278" y1="422" y2="422" stroke="#cdd8ea" stroke-width="9" stroke-linecap="round" opacity="0.12"/></g>
 </svg>

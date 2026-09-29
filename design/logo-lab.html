@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lull · logo lab</title>
+    <style>
+      @import '/node_modules/@fontsource/cormorant-garamond/500-italic.css';
+      @import '/node_modules/@fontsource/cormorant-garamond/400.css';
+      @import '/node_modules/@fontsource-variable/newsreader/opsz.css';
+      :root { --bg: #11141b; --sheet: #161a23; --card: #1b202a; --moon: #cdd8ea; --t1: #f1f3f7; --t3: #969dab; }
+      body { margin: 0; background: var(--bg); color: var(--t1); font-family: 'Newsreader Variable', Georgia, serif; }
+      main { max-width: 1100px; margin: 0 auto; padding: 32px 20px 64px; display: flex; flex-direction: column; gap: 28px; }
+      h1 { margin: 0; font: 400 40px/1 'Cormorant Garamond', serif; }
+      p.lede { margin: 0; color: var(--t3); }
+      .variant { background: var(--sheet); border: 1px solid rgba(205,216,234,.1); border-radius: 22px; padding: 22px; display: grid; gap: 22px; grid-template-columns: 260px 1fr; align-items: center; }
+      @media (max-width: 760px) { .variant { grid-template-columns: 1fr; } }
+      .big svg { width: 260px; height: 260px; display: block; border-radius: 18px; }
+      .side { display: flex; flex-direction: column; gap: 18px; }
+      .name { font: 500 30px/1 'Cormorant Garamond', serif; }
+      .note { color: var(--t3); font-size: 15px; line-height: 1.4; margin: 0; }
+      .row { display: flex; gap: 22px; align-items: end; flex-wrap: wrap; }
+      .cap { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--t3); margin-top: 8px; text-align: center; }
+      .icon svg { width: 90px; height: 90px; border-radius: 20px; display: block; }
+      .mask svg { width: 90px; height: 90px; border-radius: 50%; display: block; }
+      .fav svg { width: 32px; height: 32px; display: block; }
+      .fav16 svg { width: 16px; height: 16px; display: block; }
+      .lockup { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-radius: 16px; background: var(--bg); }
+      .lockup svg { width: 64px; height: 64px; }
+      .lockup span { font: italic 500 46px/1 'Cormorant Garamond', serif; color: var(--moon); }
+      .stack { display: flex; flex-direction: column; align-items: center; gap: 0; padding: 12px 22px; border-radius: 16px; background: var(--bg); }
+      .stack svg { width: 120px; height: 120px; }
+      .stack span { font: italic 500 40px/1 'Cormorant Garamond', serif; color: var(--moon); margin-top: -6px; }
+      .light { background: #eef1f6; }
+      .light span { color: #1a1f2b; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Lull · moon on still water</h1>
+      <p class="lede">Three takes on the same idea. Each one shown as the full mark, the iOS icon, the Android round (maskable) icon, favicons at 32 and 16 px, and the wordmark lockups.</p>
+      <div id="out"></div>
+    </main>
+    <script type="module">
+      import { MARKS } from './marks.js';
+      const out = document.getElementById('out');
+      out.style.cssText = 'display:flex;flex-direction:column;gap:22px';
+      for (const [key, m] of Object.entries(MARKS)) {
+        const s = (suffix, bg = true) => m.svg(key + suffix, bg);
+        out.insertAdjacentHTML('beforeend', `
+          <section class="variant">
+            <div class="big">${s('big')}</div>
+            <div class="side">
+              <div class="name">${key.toUpperCase()} · ${m.name}</div>
+              <p class="note">${m.note}</p>
+              <div class="row">
+                <div><div class="icon">${s('i')}</div><div class="cap">iOS</div></div>
+                <div><div class="mask">${s('k')}</div><div class="cap">Android</div></div>
+                <div><div class="fav">${s('f')}</div><div class="cap">32</div></div>
+                <div><div class="fav16">${s('g')}</div><div class="cap">16</div></div>
+              </div>
+              <div class="row">
+                <div class="lockup">${s('l', false)}<span>Lull</span></div>
+                <div class="stack">${s('s', false)}<span>Lull</span></div>
+              </div>
+            </div>
+          </section>`);
+      }
+    </script>
+  </body>
+</html>

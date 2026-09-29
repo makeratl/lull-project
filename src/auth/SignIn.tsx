@@ -1,5 +1,8 @@
 import { useState } from 'preact/hooks';
 import { AuthError, signIn, type Me } from './session';
+import { markSvg } from '../brand/mark';
+
+const MARK = markSvg({ id: 'auth', bg: false });
 
 export function Field(props: { label: string; type?: string; value: string; onInput: (v: string) => void; autocomplete?: string; minLength?: number }) {
   return (
@@ -21,7 +24,7 @@ export function AuthPage({ title, lede, children }: { title: string; lede?: stri
   return (
     <main class="page center">
       <div class="page-inner">
-        <span class="brand">Lull</span>
+        <div class="auth-mark" aria-label="Lull" role="img" dangerouslySetInnerHTML={{ __html: MARK }} />
         <h1>{title}</h1>
         {lede && <p class="lede">{lede}</p>}
         {children}

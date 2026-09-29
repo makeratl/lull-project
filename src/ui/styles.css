@@ -79,18 +79,53 @@ button:focus-visible, input:focus-visible, label:focus-within { outline: 1px sol
 
 .greeting { margin: 0; flex: none; font: 400 clamp(34px, 5.4vh, 44px)/1.02 var(--display); color: var(--t1); text-wrap: balance; }
 
-.moon-wrap { position: relative; flex: none; width: min(208px, 30vh); height: min(208px, 30vh); }
+.moon-wrap { position: relative; flex: none; width: min(208px, 30vh); height: min(208px, 30vh); margin-bottom: clamp(24px, 5vh, 46px); }
+
+/* Moonlight on the water under the play button. Still when stopped; ripples with the wave rhythm while playing. */
+.water {
+  position: absolute; left: 0; right: 0; top: calc(100% + clamp(20px, 3.2vh, 30px));
+  display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none;
+}
+.water span { height: 3px; border-radius: 2px; background: var(--moon); opacity: var(--o); transition: opacity 1.4s ease; }
+.water span:nth-child(1) { width: 70%; --o: 0.12; }
+.water span:nth-child(2) { width: 52%; --o: 0.08; }
+.water span:nth-child(3) { width: 34%; --o: 0.05; }
+.water span:nth-child(4) { width: 16%; --o: 0.03; }
+.water.on span:nth-child(1) { --o: 0.3; }
+.water.on span:nth-child(2) { --o: 0.2; }
+.water.on span:nth-child(3) { --o: 0.13; }
+.water.on span:nth-child(4) { --o: 0.08; }
+.water.on span { animation: lullRipple var(--period, 11s) ease-in-out infinite; }
+.water.on span:nth-child(2) { animation-delay: calc(var(--period, 11s) * -0.12); }
+.water.on span:nth-child(3) { animation-delay: calc(var(--period, 11s) * -0.24); }
+.water.on span:nth-child(4) { animation-delay: calc(var(--period, 11s) * -0.36); }
+@keyframes lullRipple {
+  0%, 100% { transform: translateX(-3px) scaleX(0.96); }
+  50% { transform: translateX(3px) scaleX(1.03); }
+}
 .halo {
   position: absolute; inset: -20px; border-radius: 50%; pointer-events: none;
   border: 1px solid rgba(205, 216, 234, 0.6); opacity: 0; transition: opacity 1.2s;
 }
 .halo.on { opacity: initial; }
+/* The moon's face: the handoff's gradient, with a few faint maria so it reads as a moon, not a button. */
+.moon-surface {
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse 26% 20% at 58% 37%, rgba(126, 139, 163, 0.09), transparent 72%),
+    radial-gradient(ellipse 18% 14% at 41% 60%, rgba(126, 139, 163, 0.07), transparent 72%),
+    radial-gradient(ellipse 14% 18% at 67% 63%, rgba(126, 139, 163, 0.08), transparent 72%),
+    radial-gradient(ellipse 10% 9% at 30% 41%, rgba(126, 139, 163, 0.05), transparent 72%),
+    radial-gradient(circle at 38% 34%, #f5f7fb, #cfd8e6 58%, #aeb9cc);
+}
 .moon {
-  position: absolute; inset: 0; border-radius: 50%;
-  background: radial-gradient(circle at 38% 34%, #f5f7fb, #cfd8e6 58%, #aeb9cc);
+  position: absolute; inset: 0;
   box-shadow: 0 0 100px rgba(205, 216, 234, 0.22), inset -12px -16px 34px rgba(60, 72, 96, 0.25);
   display: flex; align-items: center; justify-content: center;
+  transition: transform 0.35s var(--ease), box-shadow 1.2s ease;
 }
+.moon:active { transform: scale(0.97); }
+.moon.playing { box-shadow: 0 0 120px rgba(205, 216, 234, 0.26), inset -12px -16px 34px rgba(60, 72, 96, 0.25); }
 .pause { display: flex; gap: 12px; }
 .pause span { width: 9px; height: 40px; border-radius: 3px; background: #1a1f2b; }
 .play { width: 0; height: 0; margin-left: 8px; border-top: 24px solid transparent; border-bottom: 24px solid transparent; border-left: 37px solid #1a1f2b; }
@@ -240,3 +275,46 @@ input[type='range'] { width: 100%; margin: 0; height: 30px; accent-color: var(--
 
 /* The shell disables selection for gestures; iOS won't let you type into inputs under user-select: none. */
 .shell input:not([type='range']) { user-select: text; -webkit-user-select: text; touch-action: manipulation; }
+
+/* ─── opening ─── */
+.opening { position: absolute; inset: 0; z-index: 80; overflow: hidden; touch-action: none; }
+.opening-veil { position: absolute; inset: 0; background: var(--bg); }
+.opening-horizon { position: absolute; height: 3px; border-radius: 2px; background: var(--moon); transform-origin: 50% 50%; }
+.opening-stroke { position: absolute; height: 3px; border-radius: 2px; background: var(--moon); }
+.opening-moon { position: absolute; left: 0; top: 0; transform-origin: 50% 50%; will-change: transform; }
+.opening-word { position: absolute; left: 50%; font: italic 500 46px/1 var(--display); color: var(--moon); white-space: nowrap; }
+
+/* While the opening plays, its moon stands in for the play button; the rest of the screen waits to be revealed. */
+.shell.opening-on .screen.sleep .moon, .shell.opening-on .screen.sleep .halo { visibility: hidden; }
+.shell.intro .topbar, .shell.intro .greeting, .shell.intro .nowplaying, .shell.intro .water, .shell.intro .hint { opacity: 0; }
+.shell.reveal .topbar { animation: lullFadeIn 1s ease 0.1s both; }
+.shell.reveal .greeting { animation: lullRise 1s var(--ease) 0.2s both; }
+.shell.reveal .water { animation: lullFadeIn 1.2s ease 0.35s both; }
+.shell.reveal .nowplaying { animation: lullRise 1s var(--ease) 0.45s both; }
+.shell.reveal .hint { animation: lullFadeIn 1s ease 0.7s both; }
+
+@keyframes lullRise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes lullFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ─── softer transitions ─── */
+.sheet.open .sheet-body > * { animation: lullRise 0.5s var(--ease) both; }
+.sheet.open .sheet-body > :nth-child(2) { animation-delay: 0.04s; }
+.sheet.open .sheet-body > :nth-child(3) { animation-delay: 0.08s; }
+.sheet.open .sheet-body > :nth-child(4) { animation-delay: 0.12s; }
+.sheet.open .sheet-body > :nth-child(5) { animation-delay: 0.16s; }
+.sheet.open .sheet-body > :nth-child(n + 6) { animation-delay: 0.2s; }
+.dim { animation: lullFadeIn 0.9s ease both; }
+.phase-label { transition: opacity 0.4s ease; }
+.page-inner > * { animation: lullRise 0.8s var(--ease) both; }
+.page-inner > :nth-child(2) { animation-delay: 0.08s; }
+.page-inner > :nth-child(3) { animation-delay: 0.16s; }
+.page-inner > :nth-child(4) { animation-delay: 0.24s; }
+.page-inner > :nth-child(n + 5) { animation-delay: 0.32s; }
+
+/* ─── brand on the sign-in, join and reset pages ─── */
+.auth-mark { width: 120px; height: 120px; margin: 0 0 -8px -14px; }
+.auth-mark svg { width: 100%; height: 100%; display: block; }
+
+@media (prefers-reduced-motion: reduce) {
+  .water.on span, .sheet.open .sheet-body > *, .page-inner > *, .shell.reveal *, .dim, .halo { animation: none !important; }
+}

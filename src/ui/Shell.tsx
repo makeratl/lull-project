@@ -6,6 +6,7 @@ import { Relax } from './Relax';
 import { SleepSheet } from './SleepSheet';
 import { RelaxSheet } from './RelaxSheet';
 import type { Me } from '../auth/session';
+import { Opening, openingMode } from './opening/Opening';
 
 const MODES = ['Sleep', 'Relax'] as const;
 const EASE = 'transform .5s cubic-bezier(.2,.8,.2,1)';
@@ -15,6 +16,9 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
   useEffect(() => core.subscribe(() => rerender(0)), [core]);
 
   const [mode, setModeRaw] = useState(0);
+  // The opening plays once per launch, over the already laid-out Sleep screen.
+  const [opening] = useState(openingMode);
+  const [stage, setStage] = useState<'intro' | 'reveal' | 'on'>(opening ? 'intro' : 'on');
   const [sheet, setSheet] = useState(false);
   const [drag, setDrag] = useState({ x: 0, y: 0, sheet: 0, on: false });
   const g = useRef<{ x: number; y: number; axis: 'x' | 'y' | null } | null>(null);
@@ -109,7 +113,9 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
   const backdropOpacity = sheet ? 1 - Math.min(1, drag.sheet / 400) : Math.min(1, -drag.y / 220);
 
   return (
-    <div class="shell" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+    <div
+      class={`shell${stage === 'intro' ? ' intro' : opening ? ' reveal' : ''}${stage !== 'on' ? ' opening-on' : ''}`}
+      onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
       <div class="topbar">
         <span class="brand">Lull</span>
         <div class="tabs">
@@ -141,10 +147,10 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
       />
 
       <div
-        class="sheet"
+        class={`sheet${sheet ? ' open' : ''}`}
         aria-hidden={!sheet}
-        // The shadow would show as a dark band along the bottom edge while the sheet is tucked away.
-        style={{ transform: `translateY(${sheetY})`, transition: drag.on ? 'none' : EASE, boxShadow: sheet || drag.y ? undefined : 'none' }}
+        // The shadow and top border would show along the bottom edge while the sheet is tucked away.
+        style={{ transform: `translateY(${sheetY})`, transition: drag.on ? 'none' : EASE, boxShadow: sheet || drag.y ? undefined : 'none', borderTopColor: sheet || drag.y ? undefined : 'transparent' }}
       >
         <div class="sheet-head" onPointerDown={onSheetDown} onPointerMove={onSheetMove} onPointerUp={onSheetUp} onPointerCancel={onSheetUp}>
           <span class="grabber" />
@@ -161,6 +167,10 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
           )}
         </div>
       </div>
+
+      {opening && stage !== 'on' && (
+        <Opening mode={opening} onReveal={() => setStage('reveal')} onDone={() => setStage('on')} />
+      )}
 
       {v.dim && (
         <div class="dim" onClick={() => core.wake()}>

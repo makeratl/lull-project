@@ -60,7 +60,7 @@ export default defineConfig(({ mode }) => {
         manifest: {
           name: 'Lull',
           short_name: 'Lull',
-          description: 'Ocean, rain and noise for falling asleep, with a sleep timer and paced breathing.',
+          description: 'Ocean, rain and gentle noise for falling asleep.',
           start_url: '/',
           scope: '/',
           display: 'standalone',
@@ -76,6 +76,8 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+          // The social card and brand files are for sharing, not for running the app offline.
+          globIgnores: ['og.png', 'brand/**'],
           navigateFallback: '/index.html',
           navigateFallbackDenylist: [/^\/api\//],
           // New versions wait for the next launch; the running app is never reloaded under the user.

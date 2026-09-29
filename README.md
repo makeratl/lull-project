@@ -22,7 +22,7 @@ Built from the design handoff in `reference/` (the spec is `reference/README.md`
 | `api/` | `invite.ts` (validate), `signup.ts` (atomic redeem), `admin.ts` (invites, members, reset links) |
 | `shared/codes.ts` | Invite code format (`XXXX-XXXX`, no 0/O/1/I) |
 | `supabase/migrations/` | Schema, RLS and invite functions |
-| `scripts/` | `bootstrap-admin.ts` (first admin), `make-icons.ts` |
+| `scripts/` | `bootstrap-admin.ts` (first admin), `brand.ts` (icons, lockups, social card) |
 
 ## Local development
 
@@ -36,6 +36,17 @@ npm test                # vitest: timer/fade copy, breathing, mixes, safe-mode m
 ```
 
 In dev, `window.lull` exposes the core for poking at state.
+
+## Brand
+
+- **The mark:** the moon resting on still water, with its reflection breaking up below. It's defined once in `src/brand/mark.ts`.
+- **Generated assets:** `npm run brand` regenerates the app icons, favicon, `public/brand/` lockups and the `public/og.png` social card from that file. Text is converted to paths from the Cormorant files in `node_modules`.
+- **Opening:** `src/ui/opening/` holds a moonrise over the water, after which the moon glides into the play button.
+  - It runs about 5.4 s on a device's first launch, about 1.9 s after that, and as a plain fade under reduced motion.
+  - A tap or any key skips it.
+  - Force a mode with `?intro=full|short|still|off`, and hold a single frame with `&at=<seconds>`.
+  - Setting `localStorage['lull.intro'] = 'off'` disables it.
+- **Early explorations:** `design/logo-lab.html`, viewable in dev.
 
 ## Lock-screen safe mode
 
