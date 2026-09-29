@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "tsc -b",
     "icons": "tsx scripts/make-icons.ts",
-    "bootstrap": "tsx scripts/bootstrap-admin.ts"
+    "bootstrap": "tsx scripts/bootstrap-admin.ts",
+    "bootstrap:prod": "ENV_FILE=.env.production.local tsx scripts/bootstrap-admin.ts"
   },
   "dependencies": {
     "@fontsource-variable/newsreader": "^5.3.0",

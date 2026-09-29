@@ -1,13 +1,14 @@
 /**
  * Create the first admin once. Needs SUPABASE_SERVICE_ROLE_KEY.
- *   npm run bootstrap                 (reads .env.local, then .env)
+ *   npm run bootstrap                 local stack (reads .env.local, then .env)
+ *   npm run bootstrap:prod            production (reads .env.production.local)
  * Prints a one-time password; sign in, then use a reset link or the Supabase dashboard to change it.
  */
 import { config } from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { randomBytes } from 'node:crypto';
 
-config({ path: ['.env.local', '.env'], quiet: true });
+config({ path: process.env.ENV_FILE ? [process.env.ENV_FILE] : ['.env.local', '.env'], quiet: true });
 const email = (process.env.ADMIN_EMAIL || 'steven@makeratl.com').trim().toLowerCase();
 const name = process.env.ADMIN_NAME?.trim() || 'Steven';
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
