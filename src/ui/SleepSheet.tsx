@@ -1,6 +1,7 @@
 import type { Lull } from '../core/lull';
 import type { ViewModel } from '../core/viewModel';
 import type { Me } from '../auth/session';
+import { ChangePassword } from '../auth/ChangePassword';
 
 const num = (e: Event) => Number((e.target as HTMLInputElement).value);
 const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
@@ -117,6 +118,7 @@ export function SleepSheet({ v, core, me, onSignOut, onAdmin }: { v: ViewModel; 
           </span>
           <button class="btn-quiet" onClick={onSignOut}>Sign out</button>
         </div>
+        <ChangePassword email={me.email} />
         {me.role === 'admin' && <button class="link" onClick={onAdmin}>Invite &amp; admin</button>}
       </div>
     </>

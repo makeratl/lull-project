@@ -59,6 +59,29 @@ export const signIn = async (email: string, password: string): Promise<Me> => {
   return me;
 };
 
+/**
+ * Change the password after confirming the current one. The check signs in on a throwaway client,
+ * so the app's own session is never touched by a wrong guess.
+ */
+export const changePassword = async (email: string, current: string, next: string) => {
+  if (next.length < 10) throw new AuthError('Use at least 10 characters.');
+  if (next === current) throw new AuthError('Choose a password different from the current one.');
+  const probe = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  const { error: checkErr } = await probe.auth.signInWithPassword({ email, password: current });
+  if (checkErr) {
+    if (isAuthRetryableFetchError(checkErr)) throw new AuthError('Can’t reach Lull right now. Check your connection.');
+    throw new AuthError('Your current password isn’t right.');
+  }
+  await probe.auth.signOut({ scope: 'local' });
+  const { error } = await supabase.auth.updateUser({ password: next });
+  if (error) {
+    if (isAuthRetryableFetchError(error)) throw new AuthError('Can’t reach Lull right now. Check your connection.');
+    throw new AuthError('That password wasn’t accepted. Try a longer one.');
+  }
+};
+
 export const signOut = async () => {
   saveMe(null);
   try {

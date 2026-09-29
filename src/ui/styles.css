@@ -237,3 +237,6 @@ input[type='range'] { width: 100%; margin: 0; height: 30px; accent-color: var(--
 .qr { align-self: center; width: 220px; height: 220px; padding: 14px; border-radius: 18px; background: #f1f3f7; box-sizing: content-box; }
 .qr svg { width: 100%; height: 100%; display: block; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* The shell disables selection for gestures; iOS won't let you type into inputs under user-select: none. */
+.shell input:not([type='range']) { user-select: text; -webkit-user-select: text; touch-action: manipulation; }
