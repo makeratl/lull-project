@@ -60,7 +60,7 @@ export interface Loop {
 
 const mixKey = (p: PlayState) => {
   const on = Object.keys(p.active).filter(id => wanted({ ...p, playing: true }, id)).sort();
-  return JSON.stringify([on.map(id => [id, Math.round(levelOf(p, id) * 100), !!p.buffers[id]]), on.includes('ocean') ? p.wave : 0]);
+  return JSON.stringify([on.map(id => [id, Math.round(levelOf(p, id) * 100), !!p.buffers[id]]), on.includes('ocean') ? p.wave : 0, p.clips?.length ?? 0]);
 };
 
 /** Render the mix into a seamless loop. */
@@ -72,9 +72,12 @@ export const renderLoop = async (p: PlayState): Promise<Omit<Loop, 'url'>> => {
   const sr = SAFE_RATE, len = Math.round(L * sr), fade = Math.round(TAIL * sr), off = Math.round(W * sr);
   const ctx = new OfflineAudioContext(2, off + len + fade, sr);
   const noise = genNoise(ctx);
+  // Scares must end before the crossfaded tail, or one would be cut off at the seam.
+  const longest = Math.max(0, ...(p.clips ?? []).map(c => c.duration));
   for (const id of on) {
-    const b = buildSound(ctx, id, noise, p.wave, ctx.destination, p.buffers[id]);
+    const b = buildSound(ctx, id, noise, p.wave, ctx.destination, p.buffers[id], p.clips && { clips: p.clips, from: W });
     if (b) b.g.gain.value = levelOf(p, id) * b.base;
+    b?.scare?.fill(W + L - longest);
   }
   const out = await ctx.startRendering();
   const pcm = [0, 1].map(ch => crossfadeLoop(out.getChannelData(ch).subarray(off), len, fade));

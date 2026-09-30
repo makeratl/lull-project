@@ -12,6 +12,8 @@ export interface PlayState {
   fade: number;
   endsAt: number | null;
   buffers: Record<string, AudioBuffer>;
+  /** Haunt's one-shots, once loaded. */
+  clips?: AudioBuffer[];
 }
 
 export interface Engine {
@@ -29,6 +31,9 @@ export interface Engine {
 export const levelOf = (p: PlayState, id: string) => p.levels[id] ?? 0.5;
 export const wanted = (p: PlayState, id: string) => p.playing && !!p.active[id] && levelOf(p, id) > 0;
 
+/** Scares are scheduled this far ahead on the audio clock, so throttled timers in the background can keep up. */
+const SCARE_AHEAD = 180;
+
 /** The live Web Audio engine, a port of the reference `lull-core.js`. */
 export class LiveEngine implements Engine {
   ctx?: AudioContext;
@@ -37,6 +42,7 @@ export class LiveEngine implements Engine {
   el: HTMLAudioElement | null = null;
   nodes: Record<string, Built> = {};
   susp?: ReturnType<typeof setTimeout>;
+  scares?: ReturnType<typeof setInterval>;
 
   ensureCtx() {
     if (this.ctx) return this.ctx;
@@ -73,9 +79,10 @@ export class LiveEngine implements Engine {
       const want = wanted(p, id);
       let n = this.nodes[id];
       if (want && !n) {
-        const built = buildSound(this.ctx!, id, this.noise!, p.wave, this.master!, p.buffers[id]);
+        const built = buildSound(this.ctx!, id, this.noise!, p.wave, this.master!, p.buffers[id], p.clips && { clips: p.clips, from: t });
         if (!built) return;
         n = this.nodes[id] = built;
+        built.scare?.fill(t + SCARE_AHEAD);
       }
       if (!n) return;
       n.g.gain.setTargetAtTime(want ? (p.levels[id] ?? 0.5) * n.base : 0, t, 0.25);
@@ -119,6 +126,11 @@ export class LiveEngine implements Engine {
       });
     this.sync(p);
     this.schedule(p);
+    clearInterval(this.scares);
+    this.scares = setInterval(() => {
+      const t = this.ctx!.currentTime;
+      Object.values(this.nodes).forEach(n => n.scare?.fill(t + SCARE_AHEAD));
+    }, 30000);
   }
 
   stop() {
@@ -128,6 +140,7 @@ export class LiveEngine implements Engine {
     m.setValueAtTime(m.value, t);
     m.linearRampToValueAtTime(0, t + 1);
     clearTimeout(this.susp);
+    clearInterval(this.scares);
     this.susp = setTimeout(() => {
       this.ctx?.suspend();
       this.el?.pause();
@@ -149,6 +162,7 @@ export class LiveEngine implements Engine {
 
   destroy() {
     clearTimeout(this.susp);
+    clearInterval(this.scares);
     try {
       this.el?.pause();
       this.ctx?.close();

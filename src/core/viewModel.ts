@@ -1,5 +1,5 @@
 /** Everything the screens show, derived from core state. Plain data plus actions. */
-import { FADES, LENGTHS, PATTERNS, SOUNDS, TIMERS, type PatternId, type Step } from './constants';
+import { FADES, HAUNT, LENGTHS, PATTERNS, SOUNDS, TIMERS, type PatternId, type Step } from './constants';
 import { fadeSeconds, fmt, rounds, statusLine } from './format';
 import type { Lull } from './lull';
 
@@ -33,7 +33,7 @@ export const viewModel = (c: Lull, name = '') => {
       index: i,
       name: m.name,
       mix: m.mix,
-      summary: Object.entries(m.mix).map(([k, v]) => `${(SOUNDS.find(x => x.id === k) || { name: k }).name} ${Math.round(v * 100)}`).join(' · '),
+      summary: Object.entries(m.mix).map(([k, v]) => `${([...SOUNDS, HAUNT].find(x => x.id === k) || { name: k }).name} ${Math.round(v * 100)}`).join(' · '),
       on: c.isCurrent(m.mix),
     })),
     // Relax

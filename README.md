@@ -8,7 +8,7 @@ A private, invite-only PWA for falling asleep:
 
 Built from the design handoff in `reference/` (the spec is `reference/README.md`).
 
-- **App:** Vite + Preact + TypeScript. All sound is generated on the device with Web Audio; there are no audio files.
+- **App:** Vite + Preact + TypeScript. All sound is generated on the device with Web Audio. The one exception is Haunt's short clips (see below).
 - **Accounts:** Supabase Auth with invite codes (the wellofwyrd pattern), plus three Vercel functions in `api/`. Only admins create invites.
 - **Offline-first:** once signed in, the app opens and plays with no network. Sessions are re-checked only when online and **never while sound is playing**.
 
@@ -22,7 +22,7 @@ Built from the design handoff in `reference/` (the spec is `reference/README.md`
 | `api/` | `invite.ts` (validate), `signup.ts` (atomic redeem), `admin.ts` (invites, members, reset links) |
 | `shared/codes.ts` | Invite code format (`XXXX-XXXX`, no 0/O/1/I) |
 | `supabase/migrations/` | Schema, RLS and invite functions |
-| `scripts/` | `bootstrap-admin.ts` (first admin), `brand.ts` (icons, lockups, social card) |
+| `scripts/` | `bootstrap-admin.ts` (first admin), `brand.ts` (icons, lockups, social card), `haunt.sh` (Haunt's clips) |
 
 ## Local development
 
@@ -47,6 +47,19 @@ In dev, `window.lull` exposes the core for poking at state.
   - Force a mode with `?intro=full|short|still|off`, and hold a single frame with `&at=<seconds>`.
   - Setting `localStorage['lull.intro'] = 'off'` disables it.
 - **Early explorations:** `design/logo-lab.html`, viewable in dev.
+
+## Haunt (October)
+
+- A Halloween sound: a generated wind-and-drone bed, with a scare at random every 20–90 s. Scares are whispers, screams and knocks, each at a random level and stereo position.
+- **When it shows:** only in October. Force it with `?haunt=on` or `?haunt=off`; the choice is remembered in `localStorage['lull.haunt']`.
+- **Clips:** 17 mono MP3s (~800 KB) in `public/sounds/haunt/`.
+  - The voices are Chatterbox lines, pitched down and given a reversed-echo swell.
+  - The screams are a cappella ACE-Step takes with added room echo.
+  - The knock is synthesized.
+  - `npm run haunt` rebuilds them from the raw takes; the script lists the sources and how to add a clip.
+  - They're fetched only in season and cached by the service worker on first use (not precached).
+- **Live:** scares are scheduled 3 minutes ahead on the audio clock and topped up every 30 s.
+- **Safe mode:** 2–3 scares are baked into the 2-minute loop, so they repeat each loop.
 
 ## Lock-screen safe mode
 

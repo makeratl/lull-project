@@ -83,7 +83,11 @@ export default defineConfig(({ mode }) => {
           // New versions wait for the next launch; the running app is never reloaded under the user.
           skipWaiting: false,
           clientsClaim: true,
-          runtimeCaching: [{ urlPattern: ({ url }) => url.pathname.startsWith('/api/'), handler: 'NetworkOnly' }],
+          runtimeCaching: [
+            { urlPattern: ({ url }) => url.pathname.startsWith('/api/'), handler: 'NetworkOnly' },
+            // Haunt's clips: fetched only in October, then kept for offline nights.
+            { urlPattern: ({ url }) => url.pathname.startsWith('/sounds/'), handler: 'CacheFirst', options: { cacheName: 'lull-sounds' } },
+          ],
         },
       }),
     ],

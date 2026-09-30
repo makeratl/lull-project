@@ -3,7 +3,8 @@ import { fadeSeconds, fmt, statusLine } from '../src/core/format';
 import { KEY, Lull, loadSaved } from '../src/core/lull';
 import { viewModel } from '../src/core/viewModel';
 import type { Engine } from '../src/core/engine';
-import { crossfadeLoop, noiseSamples } from '../src/core/recipes';
+import { clipBag, crossfadeLoop, noiseSamples } from '../src/core/recipes';
+import { hauntSeason } from '../src/core/constants';
 import { encodeWav, fadePlan, loopSeconds, preRoll } from '../src/core/safeMode';
 import { formatCode, inviteLink, isValidCode, normalizeCode } from '../shared/codes';
 
@@ -254,6 +255,36 @@ describe('safe mode maths', () => {
     const r = new DataView(encodeWav([a, b], 32000, i => (i === 0 ? 0.5 : 1), 2));
     expect(r.getInt16(44, true)).toBe(Math.trunc(0.5 * 0x7fff));
     expect(r.getInt16(44 + 4, true)).toBe(-0x8000);
+  });
+});
+
+describe('haunt', () => {
+  it('is offered in October, or when forced, and remembers the override', () => {
+    expect(hauntSeason(new Date(2026, 9, 1))).toBe(true);
+    expect(hauntSeason(new Date(2026, 9, 31, 23, 59))).toBe(true);
+    expect(hauntSeason(new Date(2026, 10, 1))).toBe(false);
+    expect(hauntSeason(new Date(2026, 8, 30))).toBe(false);
+    const st = memStorage();
+    expect(hauntSeason(new Date(2026, 5, 1), '?haunt=on', st)).toBe(true);
+    expect(hauntSeason(new Date(2026, 5, 1), '', st)).toBe(true);
+    expect(hauntSeason(new Date(2026, 9, 1), '?haunt=off', st)).toBe(false);
+    expect(hauntSeason(new Date(2026, 9, 1), '', st)).toBe(false);
+  });
+
+  it('clip bag plays every clip once per round, never the same twice running', () => {
+    const draw = clipBag(5);
+    const seq = Array.from({ length: 200 }, draw);
+    for (let r = 0; r < 40; r++) expect(new Set(seq.slice(r * 5, r * 5 + 5)).size).toBe(5);
+    for (let i = 1; i < seq.length; i++) expect(seq[i]).not.toBe(seq[i - 1]);
+    expect(Array.from({ length: 3 }, clipBag(1))).toEqual([0, 0, 0]);
+  });
+
+  it('shows the Haunt tile only in season', () => {
+    const { c } = track(makeCore());
+    c.haunt = false;
+    expect(viewModel(c).sounds.some(x => x.id === 'haunt')).toBe(false);
+    c.haunt = true;
+    expect(viewModel(c).sounds.map(x => x.id)).toContain('haunt');
   });
 });
 

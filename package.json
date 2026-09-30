@@ -10,6 +10,7 @@
     "test": "vitest run",
     "typecheck": "tsc -b",
     "brand": "tsx scripts/brand.ts",
+    "haunt": "bash scripts/haunt.sh",
     "bootstrap": "tsx scripts/bootstrap-admin.ts",
     "bootstrap:prod": "ENV_FILE=.env.production.local tsx scripts/bootstrap-admin.ts"
   },

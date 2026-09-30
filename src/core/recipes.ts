@@ -54,8 +54,59 @@ export const genNoise = (ctx: BaseAudioContext, seconds = 10): Noise => {
 };
 
 /** Level multipliers, so that equal slider positions sound roughly equally loud. */
-export const BASE: Record<string, number> = { white: 0.3, pink: 0.55, brown: 0.8, rain: 0.5, fan: 1.2, stream: 1.4, ocean: 1.1 };
+export const BASE: Record<string, number> = { white: 0.3, pink: 0.55, brown: 0.8, rain: 0.5, fan: 1.2, stream: 1.4, ocean: 1.1, haunt: 1 };
 export const CUSTOM_BASE = 1;
+
+/** Seconds between scares. The first comes sooner, so turning Haunt on doesn't seem to do nothing. */
+export const SCARE_FIRST: [number, number] = [4, 14];
+export const SCARE_GAP: [number, number] = [20, 90];
+
+const between = ([lo, hi]: [number, number], rand: () => number) => lo + rand() * (hi - lo);
+
+/** Draws clip indexes from a shuffled bag, refilled when empty, never the same clip twice running. */
+export const clipBag = (n: number, rand: () => number = Math.random) => {
+  let bag: number[] = [], last = -1;
+  return () => {
+    if (!bag.length) {
+      bag = [...Array(n).keys()];
+      for (let i = n - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [bag[i], bag[j]] = [bag[j], bag[i]];
+      }
+      if (n > 1 && bag[bag.length - 1] === last) [bag[0], bag[bag.length - 1]] = [bag[bag.length - 1], bag[0]];
+    }
+    return (last = bag.pop()!);
+  };
+};
+
+export interface Scarer {
+  /** Schedule scares that start before `until` (context time). Safe to call repeatedly. */
+  fill(until: number): void;
+}
+
+/** Scares at random times from `start`, each with its own level and place in the stereo field. */
+export const scarer = (ctx: BaseAudioContext, clips: AudioBuffer[], dest: AudioNode, start: number, srcs: AudioScheduledSourceNode[], rand: () => number = Math.random): Scarer => {
+  const pick = clipBag(clips.length, rand);
+  let next = start + between(SCARE_FIRST, rand);
+  return {
+    fill(until) {
+      for (; next < until; next += between(SCARE_GAP, rand)) {
+        const s = ctx.createBufferSource(), g = ctx.createGain(), pan = ctx.createStereoPanner();
+        s.buffer = clips[pick()];
+        g.gain.value = 0.85 + rand() * 0.55;
+        pan.pan.value = rand() * 1.6 - 0.8;
+        s.connect(g); g.connect(pan); pan.connect(dest);
+        s.onended = () => {
+          const i = srcs.indexOf(s);
+          if (i >= 0) srcs.splice(i, 1);
+          pan.disconnect();
+        };
+        s.start(next);
+        srcs.push(s);
+      }
+    },
+  };
+};
 
 export interface Built {
   srcs: AudioScheduledSourceNode[];
@@ -64,6 +115,7 @@ export interface Built {
   base: number;
   osc?: OscillatorNode;
   dl?: DelayNode;
+  scare?: Scarer;
 }
 
 /**
@@ -77,6 +129,8 @@ export const buildSound = (
   wave: number,
   dest: AudioNode,
   custom?: AudioBuffer,
+  /** Haunt's one-shots, and the context time its scares may start from. */
+  scares?: { clips: AudioBuffer[]; from: number },
 ): Built | null => {
   const srcs: AudioScheduledSourceNode[] = [], extra: OscillatorNode[] = [];
   const g = ctx.createGain();
@@ -149,6 +203,30 @@ export const buildSound = (
       osc.connect(dl); dl.connect(wm); wm.connect(wg.gain);
       pipe(loop(noise.white), filt('bandpass', 2400, 0.5), wg, g);
       more = { osc, dl };
+      break;
+    }
+    case 'haunt': {
+      // Nothing until the clips have loaded: the bed alone would just be a drone.
+      if (!scares?.clips.length) {
+        g.disconnect();
+        return null;
+      }
+      // Bed: wind that gusts and shifts pitch, over a low, slowly beating drone a tritone apart.
+      const wf = filt('bandpass', 520, 1.4); lfo(0.07, 260, wf.frequency);
+      const wm = ctx.createGain(); wm.gain.value = 0.12; lfo(0.045, 0.07, wm.gain);
+      pipe(loop(noise.pink), wf, wm, g);
+      const dg = ctx.createGain(); dg.gain.value = 0.013;
+      const dlp = filt('lowpass', 320, 0.7);
+      pipe(dlp, dg, g);
+      for (const f of [55, 55.35, 77.8]) {
+        const o = ctx.createOscillator();
+        o.type = 'triangle';
+        o.frequency.value = f;
+        o.connect(dlp);
+        o.start(0);
+        extra.push(o);
+      }
+      more = { scare: scarer(ctx, scares.clips, g, scares.from, srcs) };
       break;
     }
     default:
