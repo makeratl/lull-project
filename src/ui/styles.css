@@ -445,3 +445,13 @@ input[type='range'] { width: 100%; margin: 0; height: 30px; accent-color: var(--
 .share-name { display: flex; gap: 8px; align-items: center; }
 .share-name input { all: unset; box-sizing: border-box; flex: 1; min-width: 0; height: 40px; padding: 0 14px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line-12); font: 400 15px/40px var(--ui); color: var(--t1c); }
 .share-name input:focus { border-color: var(--line-55); }
+
+/* ─── daily nudges (Relax sheet) ─── */
+.toggle-row:disabled { opacity: 0.5; cursor: default; }
+.nudge-config { display: flex; flex-direction: column; gap: 12px; }
+.nudge-times { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.nudge-time { display: flex; align-items: center; border-radius: 14px; background: var(--card); border: 1px solid var(--line-12); padding-left: 12px; }
+.nudge-time input { all: unset; height: 42px; font: 400 17px/42px var(--ui); color: var(--t1c); font-variant-numeric: tabular-nums; color-scheme: dark; user-select: text; -webkit-user-select: text; }
+.nudge-time:only-child input, .nudge-time input:last-child { padding-right: 12px; }
+.nudge-days { display: flex; gap: 6px; }
+.nudge-day { flex: 1; padding: 0; text-align: center; }

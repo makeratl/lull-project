@@ -80,6 +80,8 @@ export default defineConfig(({ mode }) => {
           maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
           // The social card and brand files are for sharing, not for running the app offline.
           globIgnores: ['og.png', 'brand/**'],
+          // Push and notification-tap handlers for daily nudges.
+          importScripts: ['push-sw.js'],
           navigateFallback: '/index.html',
           navigateFallbackDenylist: [/^\/api\//],
           // New versions wait for the next launch; the running app is never reloaded under the user.

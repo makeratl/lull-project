@@ -60,6 +60,25 @@ In dev, `window.lull` exposes the core for poking at state.
 - **Memory:** recordings load only when their sound is turned on, decoded at 32 kHz (a 3-minute loop is about 45 MB decoded).
 - **Safe mode:** the loop stretches to the longest active recording, up to 3 minutes, so it plays through before repeating.
 
+## Daily nudges
+
+- **What it does:** under **Session & sound** on Relax, "Remind me to breathe" asks the phone's permission, then sends a notification at up to 3 chosen times on chosen days (preset 8:00, 13:00, 21:00).
+  - A nudge is **skipped once today's goal is met**.
+  - Its wording follows progress ("You're at 5 of 15 minutes today…"), or the streak at the day's last time.
+  - Tapping it opens Relax (`/?screen=relax`).
+- **iPhone:** web push works only for the installed app (Home Screen, iOS 16.4+). The switch explains this when it's needed.
+- **How it's sent:** a PWA can't schedule its own notifications, so the server sends Web Push.
+  - `pg_cron` runs `nudge_tick()` every 15 minutes, which posts to `/api/nudge` with a shared secret.
+  - `/api/nudge` works out what's due in each person's time zone (`shared/nudge.ts`), claims each slot in `nudge_sent` so it's never sent twice, and sends with VAPID (`web-push`).
+  - Devices that have gone away (404/410) are forgotten.
+- **Tables:** `push_subscriptions`, `nudge_settings` (both readable only by their owner) and `nudge_sent` (server only).
+- **Setup per environment:**
+  1. Put the five `VAPID_*` / `NUDGE_SECRET` values from `.env.example` in `.env.local`, and on Vercel for production.
+  2. In the database (SQL editor), once: `select vault.create_secret('https://lull.makeratl.com/api/nudge', 'nudge_url'); select vault.create_secret('<NUDGE_SECRET>', 'nudge_secret');`
+  3. Without these, `nudge_tick()` does nothing.
+- **Local testing:** `curl -X POST -H "x-nudge-secret: $NUDGE_SECRET" localhost:5190/api/nudge` does what the scheduler would.
+- **File watchers:** the dev server needs file watchers. If it stops with `ENOSPC`, raise `fs.inotify.max_user_watches` or run it with `CHOKIDAR_USEPOLLING=true`.
+
 ## Sharing and the family tree
 
 - **Everyone can share:** **Share Lull** in the account menu (tap "Lull") opens straight to an invite's QR code and link. A name is optional for members; the admin page still requires one.

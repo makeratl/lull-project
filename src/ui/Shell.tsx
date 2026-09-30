@@ -18,7 +18,8 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
   const [, rerender] = useReducer((n: number) => n + 1, 0);
   useEffect(() => core.subscribe(() => rerender(0)), [core]);
 
-  const [mode, setModeRaw] = useState(0);
+  // A tapped nudge opens Lull with ?screen=relax.
+  const [mode, setModeRaw] = useState(() => (typeof location !== 'undefined' && new URLSearchParams(location.search).get('screen') === 'relax' ? 1 : 0));
   // The opening plays once per launch, over the already laid-out Sleep screen.
   const [opening] = useState(openingMode);
   const [stage, setStage] = useState<'intro' | 'reveal' | 'on'>(opening ? 'intro' : 'on');
