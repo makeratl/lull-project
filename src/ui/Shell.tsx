@@ -29,8 +29,8 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
 
   const setMode = (m: number) => {
     m = Math.max(0, Math.min(MODES.length - 1, m));
-    // Leaving Relax ends a breathing session; sound keeps playing.
-    if (m !== modeRef.current && core.s.breath) core.closeBreath();
+    // Leaving Relax ends a breathing session quietly (no gong); sound keeps playing.
+    if (m !== modeRef.current && core.s.breath) core.closeBreath(false);
     setModeRaw(m);
   };
 

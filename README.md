@@ -22,7 +22,7 @@ Built from the design handoff in `reference/` (the spec is `reference/README.md`
 | `api/` | `invite.ts` (validate), `signup.ts` (atomic redeem), `admin.ts` (invites, members, reset links) |
 | `shared/codes.ts` | Invite code format (`XXXX-XXXX`, no 0/O/1/I) |
 | `supabase/migrations/` | Schema, RLS and invite functions |
-| `scripts/` | `bootstrap-admin.ts` (first admin), `brand.ts` (icons, lockups, social card), `haunt.sh` (Haunt's clips), `freesound.ts` + `water.ts` (field recordings) |
+| `scripts/` | `bootstrap-admin.ts` (first admin), `brand.ts` (icons, lockups, social card), `haunt.sh` (Haunt's clips), `freesound.ts` + `recordings.ts` (recorded sounds) |
 
 ## Local development
 
@@ -55,7 +55,7 @@ In dev, `window.lull` exposes the core for poking at state.
 - **Shore** and **Brook** are field recordings, looped seamlessly, about 3 minutes each.
 - **Sources:** CC0 recordings from Freesound, credited in `public/sounds/CREDITS.md`.
   - `npm run sounds:fetch` shortlists candidates into `~/Music/lull-sources/`. It needs `FREESOUND_API_KEY` in `.env.local`.
-  - Listen, put the picks in `scripts/sounds.json`, then run `npm run water`. It cuts the waves at the troughs, crossfades the loops and normalizes loudness.
+  - Listen, put the picks in `scripts/sounds.json`, then run `npm run sounds:build`. It cuts the waves at the troughs, crossfades the loops, trims the gong and normalizes loudness.
 - **Memory:** recordings load only when their sound is turned on, decoded at 32 kHz (a 3-minute loop is about 45 MB decoded).
 - **Safe mode:** the loop stretches to the longest active recording, up to 3 minutes, so it plays through before repeating.
 

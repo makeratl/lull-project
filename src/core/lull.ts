@@ -5,6 +5,7 @@
 import { ASSETS, PATTERNS, PRESETS, SOUNDS, isIOS, type Mix, type PatternId, type SoundDef } from './constants';
 import { LiveEngine, type Engine, type PlayState } from './engine';
 import { allFiles, decode, deleteFile, putFile, trimEdges } from './files';
+import { Gong, type Chime } from './gong';
 import { SafeEngine } from './safeMode';
 
 export const KEY = 'lull.v2';
@@ -68,6 +69,7 @@ export class Lull {
   private loadingAssets = new Set<string>();
   private clips = new Map<string, Promise<AudioBuffer | null>>();
   live = new LiveEngine();
+  gong: Chime = typeof window !== 'undefined' ? new Gong() : { prime() {}, ring() {} };
   safe: SafeEngine | null = null;
   private listeners = new Set<Listener>();
   private saved = '';
@@ -318,8 +320,13 @@ export class Lull {
 
   startBreath() { this.openBreath(this.s.relax.p, this.s.relax.min); }
 
+  /** A new session rings the gong; restarting one (a pattern or length change) doesn't. */
   openBreath(p: PatternId, min: number) {
     const now = Date.now();
+    if (!this.s.breath) {
+      this.gong.prime();
+      this.gong.ring();
+    }
     this.s.breath = { p, i: -1, ends: now + 2000, cycles: 0, until: min ? now + 2000 + min * 60000 : null };
     this.s.now = now;
     this.emit();
@@ -342,7 +349,9 @@ export class Lull {
     this.emit();
   }
 
-  closeBreath() {
+  /** Ends the session with the gong, when it finishes or is stopped; leaving the screen passes `gong: false`. */
+  closeBreath(gong = true) {
+    if (gong && this.s.breath) this.gong.ring();
     this.s.breath = null;
     clearInterval(this.biv);
     this.last = Date.now();

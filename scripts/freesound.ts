@@ -19,9 +19,15 @@ const root = process.env.LULL_SOURCES || join(homedir(), 'Music', 'lull-sources'
 // Anything that would break the spell at 3 a.m.
 const UNWANTED = /\b(sea)?gulls?\b|\bbirds?\b|birdsong|\bvoices?\b|\btalk|\bpeople\b|\bkids?\b|\bchild|\bmusic|\bdogs?\b|\bboats?\b|\bmotor|\bengine|\btraffic\b|\bcars?\b|\bplanes?\b|\bwind-?noise|\brain\b|\bthunder|underwater|hydrophone/i;
 
-const SETS: Record<string, { queries: string[]; duration: [number, number] }> = {
+const SETS: Record<string, { queries: string[]; duration: [number, number]; avoid?: RegExp }> = {
   surf: { queries: ['ocean waves beach', 'waves breaking shore', 'surf beach waves'], duration: [60, 900] },
   stream: { queries: ['stream brook water', 'creek water flowing', 'babbling brook'], duration: [60, 900] },
+  // A single strike that rings out. Gongs are tagged "music", so they get their own filter.
+  gong: {
+    queries: ['gong single hit', 'gong strike', 'tibetan gong', 'meditation gong'],
+    duration: [4, 40],
+    avoid: /\bvoices?\b|\btalk|\bpeople\b|\bdrums?\b|\bloops?\b|\breverse|\bsequence|\brolls?\b|\bscrape|\bbowed|\bcrash\b|\bmetal ?hit\b|\bsci-?fi/i,
+  },
 };
 const KEEP = 8;
 
@@ -58,7 +64,10 @@ for (const [set, spec] of Object.entries(SETS)) {
   const seen = new Map<number, Hit>();
   for (const q of spec.queries) for (const h of await search(q, spec.duration)) if (!seen.has(h.id)) seen.set(h.id, h);
   const picks = [...seen.values()]
-    .filter(h => !UNWANTED.test(h.name) && !h.tags.some(t => UNWANTED.test(t)))
+    .filter(h => {
+      const avoid = spec.avoid ?? UNWANTED;
+      return !avoid.test(h.name) && !h.tags.some(t => avoid.test(t));
+    })
     // Popular and well rated first: a rough proxy for clean, well-made recordings.
     .sort((a, b) => Math.log1p(b.num_downloads) * (1 + b.avg_rating) - Math.log1p(a.num_downloads) * (1 + a.avg_rating))
     .slice(0, KEEP);

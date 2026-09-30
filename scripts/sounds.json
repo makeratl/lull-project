@@ -1,5 +1,24 @@
 {
-  "shore": { "set": "surf", "id": 827530, "from": 0, "seconds": 180 },
-  "waves": { "set": "surf", "id": 827530, "count": 8 },
-  "brook": { "set": "stream", "id": 566283, "from": 60, "seconds": 180 }
+  "shore": {
+    "set": "surf",
+    "id": 827530,
+    "from": 0,
+    "seconds": 180
+  },
+  "waves": {
+    "set": "surf",
+    "id": 827530,
+    "count": 8
+  },
+  "brook": {
+    "set": "stream",
+    "id": 566283,
+    "from": 60,
+    "seconds": 180
+  },
+  "gong": {
+    "set": "gong",
+    "id": 240153,
+    "seconds": 18
+  }
 }

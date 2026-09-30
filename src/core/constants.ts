@@ -22,7 +22,7 @@ export const SOUNDS: SoundDef[] = [
 
 /**
  * Recorded clips per built-in sound, in public/sounds/, loaded when the sound is first turned on.
- * Built by scripts/haunt.sh and scripts/water.ts (sources and credits in public/sounds/CREDITS.md).
+ * Built by scripts/haunt.sh and scripts/recordings.ts (sources and credits in public/sounds/CREDITS.md).
  */
 export const ASSETS: Record<string, string[]> = {
   // Field recordings (Freesound, CC0), looped seamlessly.

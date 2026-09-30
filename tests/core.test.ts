@@ -31,7 +31,9 @@ const makeCore = (saved?: object) => {
   const eng = stubEngine();
   c.engine = () => eng;
   c.live.stop = () => {};
-  return { c, eng, st };
+  const gongs: string[] = [];
+  c.gong = { prime: () => void gongs.push('prime'), ring: () => void gongs.push('ring') };
+  return { c, eng, st, gongs };
 };
 
 let cores: Lull[] = [];
@@ -202,6 +204,24 @@ describe('breathing', () => {
     vi.advanceTimersByTime(3 * 60000 + 2500);
     expect(c.s.breath).toBeNull();
     expect(viewModel(c).relaxMeta).toBe('3 minute session');
+  });
+
+  it('the gong rings at the start and end, not on a restart or when leaving', () => {
+    vi.useFakeTimers();
+    const { c, gongs } = track(makeCore());
+    c.setRelax({ min: 3 });
+    c.startBreath();
+    expect(gongs).toEqual(['prime', 'ring']);
+    c.setRelax({ p: 'box' });
+    expect(gongs.filter(g => g === 'ring').length).toBe(1);
+    vi.advanceTimersByTime(3 * 60000 + 2500);
+    expect(gongs.filter(g => g === 'ring').length).toBe(2);
+    c.startBreath();
+    c.closeBreath();
+    expect(gongs.filter(g => g === 'ring').length).toBe(4);
+    c.startBreath();
+    c.closeBreath(false);
+    expect(gongs.filter(g => g === 'ring').length).toBe(5);
   });
 
   it('open sessions', () => {

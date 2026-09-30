@@ -1,13 +1,15 @@
 /**
- * Builds the recorded water sounds in public/sounds/ from the Freesound picks in scripts/sounds.json.
+ * Builds Lull's recorded sounds in public/sounds/ from the Freesound picks in scripts/sounds.json.
  *   npm run sounds:fetch   (once, then listen and choose)
- *   npm run water
+ *   npm run sounds:build
  * Sources are read from $LULL_SOURCES (default ~/Music/lull-sources)/<set>/<id>-*.mp3.
  *
  * - shore.mp3, brook.mp3: a stretch of each recording, its tail crossfaded into its head (the app's own
  *   crossfadeLoop) so it loops without a seam, at -20 LUFS, 96 kbps stereo.
  * - ocean/wave-N.mp3: single breaking waves cut trough to trough from the surf recording. One gain for all
  *   of them, so their sizes stay natural.
+ * - gong.mp3: one strike for the start and end of a breathing session, from its onset, faded out as it
+ *   rings down, at -22 LUFS.
  * - CREDITS.md from the sources' metadata.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -25,6 +27,7 @@ const picks = JSON.parse(readFileSync(join(here, 'sounds.json'), 'utf8')) as {
   shore: { set: string; id: number; from: number; seconds: number };
   waves: { set: string; id: number; count: number };
   brook: { set: string; id: number; from: number; seconds: number };
+  gong: { set: string; id: number; seconds: number };
 };
 
 const source = (set: string, id: number) => {
@@ -146,12 +149,27 @@ for (const name of ['shore', 'brook'] as const) {
   if (chosen.length < p.count) console.warn(`only ${chosen.length} clean waves found (wanted ${p.count})`);
 }
 
+// ── gong ──
+{
+  const p = picks.gong, chs = decode(source(p.set, p.id));
+  // Start just before the strike: the first sample within 40 dB of the peak, less 20 ms.
+  let peak = 0;
+  for (const c of chs) for (const x of c) peak = Math.max(peak, Math.abs(x));
+  let a = 0;
+  while (a < chs[0].length && Math.abs(chs[0][a]) < peak / 100 && Math.abs(chs[1][a]) < peak / 100) a++;
+  a = Math.max(0, a - Math.round(0.02 * SR));
+  const cut = chs.map(c => c.slice(a, a + p.seconds * SR));
+  const gain = -22 - loudness(cut);
+  encode(cut, join(OUT, 'gong.mp3'), gain, 96, 0, 4);
+  console.log(`gong.mp3  ${(cut[0].length / SR).toFixed(1)} s  from ${(a / SR).toFixed(2)} s  gain ${gain.toFixed(1)} dB`);
+}
+
 // ── credits ──
 const meta = (set: string) => JSON.parse(readFileSync(join(SRC, set, 'sources.json'), 'utf8')) as { id: number; title: string; author: string; url: string; license: string }[];
-const used = [...new Map([picks.shore, picks.waves, picks.brook].map(p => [p.id, meta(p.set).find(m => m.id === p.id)!])).values()];
+const used = [...new Map([picks.shore, picks.waves, picks.brook, picks.gong].map(p => [p.id, meta(p.set).find(m => m.id === p.id)!])).values()];
 writeFileSync(
   join(OUT, 'CREDITS.md'),
-  `# Sound credits\n\nField recordings from [Freesound](https://freesound.org), all CC0 (public domain). Thank you.\n\n` +
+  `# Sound credits\n\nRecordings from [Freesound](https://freesound.org), all CC0 (public domain). Thank you.\n\n` +
     used.map(m => `- **${m.title}** by ${m.author}: ${m.url}`).join('\n') +
     `\n\nHaunt's voices were made with Chatterbox and its screams with ACE-Step.\n`,
 );
