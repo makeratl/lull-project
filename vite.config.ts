@@ -75,7 +75,7 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+          globPatterns: ['**/*.{js,css,html,svg,png,woff2,mp3}'],
           // The social card and brand files are for sharing, not for running the app offline.
           globIgnores: ['og.png', 'brand/**'],
           navigateFallback: '/index.html',
@@ -85,8 +85,6 @@ export default defineConfig(({ mode }) => {
           clientsClaim: true,
           runtimeCaching: [
             { urlPattern: ({ url }) => url.pathname.startsWith('/api/'), handler: 'NetworkOnly' },
-            // Haunt's clips: fetched only in October, then kept for offline nights.
-            { urlPattern: ({ url }) => url.pathname.startsWith('/sounds/'), handler: 'CacheFirst', options: { cacheName: 'lull-sounds' } },
           ],
         },
       }),

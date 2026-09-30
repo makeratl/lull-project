@@ -48,16 +48,14 @@ In dev, `window.lull` exposes the core for poking at state.
   - Setting `localStorage['lull.intro'] = 'off'` disables it.
 - **Early explorations:** `design/logo-lab.html`, viewable in dev.
 
-## Haunt (October)
+## Haunt
 
-- A Halloween sound: a generated wind-and-drone bed, with a scare at random every 20–90 s. Scares are whispers, screams and knocks, each at a random level and stereo position.
-- **When it shows:** only in October. Force it with `?haunt=on` or `?haunt=off`; the choice is remembered in `localStorage['lull.haunt']`.
-- **Clips:** 17 mono MP3s (~800 KB) in `public/sounds/haunt/`.
+- A spooky sound: a generated wind-and-drone bed, with a scare at random every 20–90 s. Scares are whispers, screams and knocks, each at a random level and stereo position.
+- **Clips:** 17 mono MP3s (~800 KB) in `public/sounds/haunt/`, precached by the service worker so Haunt works offline.
   - The voices are Chatterbox lines, pitched down and given a reversed-echo swell.
   - The screams are a cappella ACE-Step takes with added room echo.
   - The knock is synthesized.
   - `npm run haunt` rebuilds them from the raw takes; the script lists the sources and how to add a clip.
-  - They're fetched only in season and cached by the service worker on first use (not precached).
 - **Live:** scares are scheduled 3 minutes ahead on the audio clock and topped up every 30 s.
 - **Safe mode:** 2–3 scares are baked into the 2-minute loop, so they repeat each loop.
 

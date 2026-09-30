@@ -2,7 +2,7 @@
  * App state and actions: a typed port of the reference `lull-core.js`.
  * Framework-free; the UI subscribes and renders `viewModel(core)`.
  */
-import { HAUNT, HAUNT_CLIPS, PATTERNS, PRESETS, SOUNDS, hauntSeason, isIOS, type Mix, type PatternId, type SoundDef } from './constants';
+import { HAUNT_CLIPS, PATTERNS, PRESETS, SOUNDS, isIOS, type Mix, type PatternId, type SoundDef } from './constants';
 import { LiveEngine, type Engine, type PlayState } from './engine';
 import { allFiles, decode, deleteFile, putFile } from './files';
 import { SafeEngine } from './safeMode';
@@ -64,8 +64,6 @@ export class Lull {
   last = Date.now();
   buffers: Record<string, AudioBuffer> = {};
   blobs: Record<string, Blob> = {};
-  /** Haunt is offered (October, or forced with `?haunt=on`). */
-  haunt: boolean;
   clips: AudioBuffer[] = [];
   live = new LiveEngine();
   safe: SafeEngine | null = null;
@@ -77,7 +75,6 @@ export class Lull {
   constructor(private storage: Pick<Storage, 'getItem' | 'setItem'> | null = typeof localStorage !== 'undefined' ? localStorage : null) {
     let raw: string | null = null;
     try { raw = storage?.getItem(KEY) ?? null; } catch { /* private mode */ }
-    this.haunt = hauntSeason(new Date(), typeof location !== 'undefined' ? location.search : '', storage);
     this.s = { ...loadSaved(raw), customs: [], playing: false, endsAt: null, dim: false, now: Date.now(), breath: null, fileError: null };
     this.iv = setInterval(() => this.tick(), 1000);
   }
@@ -92,10 +89,10 @@ export class Lull {
     this.s.customs = recs.map(r => ({ id: r.id, name: r.name, note: 'Your recording', custom: true }));
     this.emit();
     if (this.s.safeMode) this.safeEngine().prepare(this.playState());
-    if (this.haunt) this.loadClips();
+    this.loadClips();
   }
 
-  /** Fetched only in season; the service worker keeps them for offline nights. */
+  /** Haunt's one-shots (precached by the service worker, so this works offline). */
   async loadClips() {
     const got = await Promise.all(
       HAUNT_CLIPS.map(url => fetch(url).then(r => (r.ok ? r.arrayBuffer() : Promise.reject(r.status))).then(decode).catch(() => null)),
@@ -133,7 +130,7 @@ export class Lull {
   }
 
   // ─── sounds ───
-  all(): SoundDef[] { return [...SOUNDS, ...(this.haunt ? [HAUNT] : []), ...this.s.customs]; }
+  all(): SoundDef[] { return [...SOUNDS, ...this.s.customs]; }
   known(id: string) { return this.all().some(x => x.id === id); }
   activeList() { return this.all().filter(x => this.s.active[x.id]); }
   mixLabel() {

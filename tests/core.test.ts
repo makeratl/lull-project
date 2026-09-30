@@ -4,7 +4,6 @@ import { KEY, Lull, loadSaved } from '../src/core/lull';
 import { viewModel } from '../src/core/viewModel';
 import type { Engine } from '../src/core/engine';
 import { clipBag, crossfadeLoop, noiseSamples } from '../src/core/recipes';
-import { hauntSeason } from '../src/core/constants';
 import { encodeWav, fadePlan, loopSeconds, preRoll } from '../src/core/safeMode';
 import { formatCode, inviteLink, isValidCode, normalizeCode } from '../shared/codes';
 
@@ -259,18 +258,6 @@ describe('safe mode maths', () => {
 });
 
 describe('haunt', () => {
-  it('is offered in October, or when forced, and remembers the override', () => {
-    expect(hauntSeason(new Date(2026, 9, 1))).toBe(true);
-    expect(hauntSeason(new Date(2026, 9, 31, 23, 59))).toBe(true);
-    expect(hauntSeason(new Date(2026, 10, 1))).toBe(false);
-    expect(hauntSeason(new Date(2026, 8, 30))).toBe(false);
-    const st = memStorage();
-    expect(hauntSeason(new Date(2026, 5, 1), '?haunt=on', st)).toBe(true);
-    expect(hauntSeason(new Date(2026, 5, 1), '', st)).toBe(true);
-    expect(hauntSeason(new Date(2026, 9, 1), '?haunt=off', st)).toBe(false);
-    expect(hauntSeason(new Date(2026, 9, 1), '', st)).toBe(false);
-  });
-
   it('clip bag plays every clip once per round, never the same twice running', () => {
     const draw = clipBag(5);
     const seq = Array.from({ length: 200 }, draw);
@@ -279,11 +266,8 @@ describe('haunt', () => {
     expect(Array.from({ length: 3 }, clipBag(1))).toEqual([0, 0, 0]);
   });
 
-  it('shows the Haunt tile only in season', () => {
+  it('Haunt is a regular sound', () => {
     const { c } = track(makeCore());
-    c.haunt = false;
-    expect(viewModel(c).sounds.some(x => x.id === 'haunt')).toBe(false);
-    c.haunt = true;
     expect(viewModel(c).sounds.map(x => x.id)).toContain('haunt');
   });
 });
