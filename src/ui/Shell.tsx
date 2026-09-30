@@ -6,6 +6,7 @@ import { Relax } from './Relax';
 import { SleepSheet } from './SleepSheet';
 import { RelaxSheet } from './RelaxSheet';
 import { AccountMenu } from './AccountMenu';
+import { Practice } from './Practice';
 import type { Me } from '../auth/session';
 import { Opening, openingMode } from './opening/Opening';
 
@@ -22,6 +23,7 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
   const [stage, setStage] = useState<'intro' | 'reveal' | 'on'>(opening ? 'intro' : 'on');
   const [sheet, setSheet] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [practice, setPractice] = useState(false);
   const [drag, setDrag] = useState({ x: 0, y: 0, sheet: 0, on: false });
   const g = useRef<{ x: number; y: number; axis: 'x' | 'y' | null } | null>(null);
   const sg = useRef<{ y: number } | null>(null);
@@ -49,7 +51,7 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
       else if (e.key === 'ArrowLeft') setMode(modeRef.current - 1);
       else if (e.key === 'ArrowUp') setSheet(true);
       else if (e.key === 'ArrowDown') setSheet(false);
-      else if (e.key === 'Escape') { setSheet(false); setMenu(false); }
+      else if (e.key === 'Escape') { setSheet(false); setMenu(false); setPractice(false); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -57,7 +59,7 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
 
   const onDown = (e: PointerEvent) => {
     core.touch();
-    if (sheet || menu || core.s.dim) return;
+    if (sheet || menu || practice || core.s.dim) return;
     if ((e.target as HTMLElement).closest?.('input,label')) return;
     g.current = { x: e.clientX, y: e.clientY, axis: null };
   };
@@ -140,6 +142,7 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
           toggleBreath={guard(() => (core.s.breath ? core.closeBreath() : core.startBreath()))}
           pickPattern={id => core.setRelax({ p: id })}
           openSheet={openSheet}
+          openPractice={guard(() => setPractice(true))}
         />
       </div>
 
@@ -166,10 +169,12 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
           {mode === 0 ? (
             <SleepSheet v={v} core={core} />
           ) : (
-            <RelaxSheet v={v} core={core} />
+            <RelaxSheet v={v} core={core} openPractice={() => { setSheet(false); setPractice(true); }} />
           )}
         </div>
       </div>
+
+      {practice && <Practice core={core} onClose={() => setPractice(false)} />}
 
       {menu && <AccountMenu me={me} onClose={() => setMenu(false)} onSignOut={onSignOut} onAdmin={onAdmin} />}
 

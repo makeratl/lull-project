@@ -6,6 +6,7 @@
  * and the user is signed out only on a definite answer (revoked, suspended, deleted), never on a network error.
  */
 import { createClient, isAuthRetryableFetchError } from '@supabase/supabase-js';
+import type { Remote, Session } from '../core/practice';
 
 export interface Me {
   id: string;
@@ -109,6 +110,26 @@ export const verify = async (): Promise<Me | null | undefined> => {
     if (e instanceof AuthError || (e as { code?: string })?.code === 'PGRST116') return null;
     return undefined;
   }
+};
+
+const SESSION_COLS = 'id, pattern, started_at, seconds, rounds, planned_min, completed';
+
+/** The practice log's server side: the signed-in person's own rows in `relax_sessions` (RLS). */
+export const practiceRemote: Remote = {
+  async push(rows) {
+    // user_id defaults to the caller; an id already uploaded (a retry) is left alone.
+    const { error } = await supabase.from('relax_sessions').upsert(rows, { onConflict: 'id', ignoreDuplicates: true });
+    if (error) throw error;
+  },
+  async pull() {
+    const { data, error } = await supabase.from('relax_sessions').select(SESSION_COLS).order('started_at').limit(10000);
+    if (error) throw error;
+    return data as Session[];
+  },
+  async remove(ids) {
+    const { error } = await supabase.from('relax_sessions').delete().in('id', ids);
+    if (error) throw error;
+  },
 };
 
 /** Fetch an /api route with the current session's token. */

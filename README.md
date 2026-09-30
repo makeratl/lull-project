@@ -11,6 +11,7 @@ Built from the design handoff in `reference/` (the spec is `reference/README.md`
 - **App:** Vite + Preact + TypeScript. Sound is generated on the device with Web Audio, except for recordings: Ocean's waves, Shore, Brook and Haunt's clips (see below).
 - **Accounts:** Supabase Auth with invite codes (the wellofwyrd pattern), plus three Vercel functions in `api/`. Only admins create invites.
 - **Offline-first:** once signed in, the app opens and plays with no network. Sessions are re-checked only when online and **never while sound is playing**.
+- **Private by default:** sounds, mixes and settings stay on the device. The one thing saved to the account is the breathing practice log (pattern, time, length, rounds), readable only by its owner.
 
 ## Layout
 
@@ -58,6 +59,14 @@ In dev, `window.lull` exposes the core for poking at state.
   - Listen, put the picks in `scripts/sounds.json`, then run `npm run sounds:build`. It cuts the waves at the troughs, crossfades the loops, trims the gong and normalizes loudness.
 - **Memory:** recordings load only when their sound is turned on, decoded at 32 kHz (a 3-minute loop is about 45 MB decoded).
 - **Safe mode:** the loop stretches to the longest active recording, up to 3 minutes, so it plays through before repeating.
+
+## Practice log (Relax)
+
+- **What's logged:** breathing sessions of a minute or more, finished or stopped early: pattern, start, length, rounds and whether it ran to the end. They're saved to the `relax_sessions` table and are readable, insertable and deletable only by their owner (RLS).
+- **Offline:** logged on the device first (`src/core/practice.ts`, `lull.practice.<userId>`), then uploaded when online. Ids are made on the device, so a retried upload is stored once.
+- **Nights:** a night runs until 4 a.m., so a 12:40 a.m. session counts for the evening before. Streaks count consecutive nights; tonight's streak isn't broken until tonight is over.
+- **Where:** a streak line under the Relax pills opens "Your practice": the streaks, a month calendar where each night's moon waxes with minutes (full at 15), and that night's sessions, each removable.
+- **Deploying:** run `supabase db push` on the hosted project before the app update that needs the table goes out.
 
 ## Haunt
 

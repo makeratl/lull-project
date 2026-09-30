@@ -5,7 +5,8 @@ import { SignIn } from './auth/SignIn';
 import { Join } from './auth/Join';
 import { Reset } from './auth/Reset';
 import { Admin } from './auth/Admin';
-import { cachedMe, saveMe, signOut, verify, type Me } from './auth/session';
+import { cachedMe, practiceRemote, saveMe, signOut, verify, type Me } from './auth/session';
+import { PracticeLog } from './core/practice';
 
 let core: Lull | null = null;
 const getCore = () => {
@@ -77,6 +78,20 @@ export function App() {
       window.removeEventListener('online', check);
       clearInterval(iv);
     };
+  }, [me?.id]);
+
+  // The practice log belongs to whoever is signed in; it syncs on start and whenever the network returns.
+  useEffect(() => {
+    if (!me) {
+      core?.setPractice(null);
+      return;
+    }
+    const log = new PracticeLog(me.id, practiceRemote);
+    getCore().setPractice(log);
+    log.sync();
+    const online = () => log.sync();
+    window.addEventListener('online', online);
+    return () => window.removeEventListener('online', online);
   }, [me?.id]);
 
   if (path === '/join') return me ? <Redirect to="/" nav={nav} /> : <Join onDone={done} />;

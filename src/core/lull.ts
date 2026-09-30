@@ -6,6 +6,7 @@ import { ASSETS, PATTERNS, PRESETS, SOUNDS, isIOS, type Mix, type PatternId, typ
 import { LiveEngine, type Engine, type PlayState } from './engine';
 import { allFiles, decode, deleteFile, putFile, trimEdges } from './files';
 import { Gong, type Chime } from './gong';
+import { MIN_SECONDS, type PracticeLog, type Session } from './practice';
 import { SafeEngine } from './safeMode';
 
 export const KEY = 'lull.v2';
@@ -17,6 +18,9 @@ export interface Breath {
   ends: number;
   cycles: number;
   until: number | null;
+  /** When breathing begins (after "Settle in"), and the chosen length (0 = open): for the practice log. */
+  started: number;
+  min: number;
 }
 
 export interface Saved {
@@ -70,6 +74,9 @@ export class Lull {
   private clips = new Map<string, Promise<AudioBuffer | null>>();
   live = new LiveEngine();
   gong: Chime = typeof window !== 'undefined' ? new Gong() : { prime() {}, ring() {} };
+  /** The signed-in person's practice log (set by the app once it knows who that is). */
+  practice: Pick<PracticeLog, 'record' | 'sessions' | 'remove' | 'sync' | 'subscribe'> | null = null;
+  private practiceOff?: () => void;
   safe: SafeEngine | null = null;
   private listeners = new Set<Listener>();
   private saved = '';
@@ -312,6 +319,13 @@ export class Lull {
     delete this.blobs[id];
   }
 
+  setPractice(log: Lull['practice']) {
+    this.practiceOff?.();
+    this.practice = log;
+    this.practiceOff = log?.subscribe(() => this.emit());
+    this.emit();
+  }
+
   // ─── breathing ───
   setRelax(patch: Partial<State['relax']>) {
     this.set(s => ({ relax: { ...s.relax, ...patch } }));
@@ -326,8 +340,8 @@ export class Lull {
     if (!this.s.breath) {
       this.gong.prime();
       this.gong.ring();
-    }
-    this.s.breath = { p, i: -1, ends: now + 2000, cycles: 0, until: min ? now + 2000 + min * 60000 : null };
+    } else this.logBreath(this.s.breath, false, now);
+    this.s.breath = { p, i: -1, ends: now + 2000, cycles: 0, until: min ? now + 2000 + min * 60000 : null, started: now + 2000, min };
     this.s.now = now;
     this.emit();
     clearInterval(this.biv);
@@ -337,7 +351,7 @@ export class Lull {
   btick(now = Date.now()) {
     const b = this.s.breath;
     if (!b) { clearInterval(this.biv); return; }
-    if (b.until && now >= b.until) { this.closeBreath(); return; }
+    if (b.until && now >= b.until) { this.closeBreath(true, true); return; }
     if (now >= b.ends) {
       const steps = PATTERNS[b.p].steps;
       let i = b.i + 1;
@@ -349,13 +363,24 @@ export class Lull {
     this.emit();
   }
 
-  /** Ends the session with the gong, when it finishes or is stopped; leaving the screen passes `gong: false`. */
-  closeBreath(gong = true) {
+  /**
+   * Ends the session with the gong, when it finishes or is stopped; leaving the screen passes `gong: false`.
+   * A session of a minute or more goes into the practice log either way.
+   */
+  closeBreath(gong = true, completed = false) {
+    if (this.s.breath) this.logBreath(this.s.breath, completed, Date.now());
     if (gong && this.s.breath) this.gong.ring();
     this.s.breath = null;
     clearInterval(this.biv);
     this.last = Date.now();
     this.emit();
+  }
+
+  private logBreath(b: Breath, completed: boolean, now: number) {
+    const seconds = Math.floor((Math.min(now, b.until ?? now) - b.started) / 1000);
+    if (seconds < MIN_SECONDS || !this.practice) return;
+    const s: Omit<Session, 'id'> = { pattern: b.p, started_at: new Date(b.started).toISOString(), seconds, rounds: b.cycles, planned_min: b.min, completed };
+    this.practice.record(s);
   }
 
   // ─── dim ───

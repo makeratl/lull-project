@@ -2,7 +2,7 @@ import type { PatternId } from '../core/constants';
 import type { ViewModel } from '../core/viewModel';
 import { SheetHint } from './Sleep';
 
-export function Relax(props: { v: ViewModel; active: boolean; toggleBreath: () => void; pickPattern: (id: PatternId) => void; openSheet: () => void }) {
+export function Relax(props: { v: ViewModel; active: boolean; toggleBreath: () => void; pickPattern: (id: PatternId) => void; openSheet: () => void; openPractice: () => void }) {
   const { v } = props;
   return (
     <section class="screen relax" aria-label="Relax" inert={!props.active}>
@@ -29,6 +29,10 @@ export function Relax(props: { v: ViewModel; active: boolean; toggleBreath: () =
           <button key={p.id} class={`ppill${p.on ? ' on' : ''}`} onClick={() => props.pickPattern(p.id)}>{p.name}</button>
         ))}
       </div>
+      <button class={`streak${v.practice.current ? ' on' : ''}`} onClick={props.openPractice}>
+        <span class="streak-moon" aria-hidden="true" />
+        {v.practice.line}
+      </button>
       <SheetHint label="Session & sound" onClick={props.openSheet} />
     </section>
   );

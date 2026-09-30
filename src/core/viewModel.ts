@@ -2,6 +2,7 @@
 import { FADES, GROUPS, LENGTHS, PATTERNS, SOUNDS, TIMERS, artFor, type PatternId, type Step } from './constants';
 import { fadeSeconds, fmt, rounds, statusLine } from './format';
 import type { Lull } from './lull';
+import { addDays, byDay, dayKey, streaks } from './practice';
 
 export const viewModel = (c: Lull, name = '') => {
   const s = c.s, now = s.now;
@@ -12,6 +13,10 @@ export const viewModel = (c: Lull, name = '') => {
   const step: Step | null = b ? (b.i < 0 ? ['Settle in', 2, 0] : P!.steps[b.i]) : null;
   const R = PATTERNS[s.relax.p];
   const trimmed = name.trim();
+  const log = c.practice?.sessions ?? [], days = byDay(log), today = dayKey(now), streak = streaks(days.keys(), today);
+  let week = 0;
+  for (let i = 0; i < 7; i++) week += days.get(addDays(today, -i))?.minutes ?? 0;
+  const weekMin = Math.round(week);
   const sounds = c.all().map(x => ({ ...x, on: !!s.active[x.id], custom: !!x.custom, art: artFor(x), pct: Math.round((s.levels[x.id] ?? 0.5) * 100) }));
 
   return {
@@ -46,6 +51,14 @@ export const viewModel = (c: Lull, name = '') => {
       on: c.isCurrent(m.mix),
     })),
     // Relax
+    practice: {
+      has: log.length > 0,
+      current: streak.current,
+      longest: streak.longest,
+      weekMinutes: weekMin,
+      /** The quiet line under the Relax pills. */
+      line: streak.current ? `${streak.current}-night streak · ${weekMin} min this week` : weekMin ? `${weekMin} min this week` : 'Your practice',
+    },
     relaxPatterns: (Object.keys(PATTERNS) as PatternId[]).map(id => ({ id, name: PATTERNS[id].name, sub: PATTERNS[id].sub, on: s.relax.p === id })),
     relaxLengths: LENGTHS.map(v => ({ value: v, label: v ? `${v} min` : 'Open', on: s.relax.min === v })),
     relaxName: R.name,

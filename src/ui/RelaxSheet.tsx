@@ -1,9 +1,16 @@
 import type { Lull } from '../core/lull';
 import type { ViewModel } from '../core/viewModel';
 
-export function RelaxSheet({ v, core }: { v: ViewModel; core: Lull }) {
+export function RelaxSheet({ v, core, openPractice }: { v: ViewModel; core: Lull; openPractice: () => void }) {
   return (
     <>
+      <button class="practice-row" onClick={openPractice}>
+        <span class="mix-text">
+          <span class="mix-name">Your practice</span>
+          <span class="note">{v.practice.has ? `${v.practice.line} · longest ${v.practice.longest}` : 'Streaks and a calendar of your breathing'}</span>
+        </span>
+        <span class="menu-chev" aria-hidden="true" />
+      </button>
       <div class="section">
         <span class="label">Pattern</span>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
