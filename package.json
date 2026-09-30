@@ -10,6 +10,7 @@
     "test": "vitest run",
     "typecheck": "tsc -b",
     "brand": "tsx scripts/brand.ts",
+    "art": "bash scripts/art.sh",
     "haunt": "bash scripts/haunt.sh",
     "sounds:fetch": "tsx scripts/freesound.ts",
     "sounds:build": "tsx scripts/recordings.ts",

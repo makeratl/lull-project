@@ -1,24 +1,38 @@
 export type SoundId = 'ocean' | 'shore' | 'rain' | 'fan' | 'stream' | 'brook' | 'brown' | 'pink' | 'white' | 'haunt';
 
+export type GroupId = 'water' | 'noise' | 'seasonal' | 'yours';
+
 export interface SoundDef {
   id: string;
   name: string;
   note: string;
+  group: GroupId;
   custom?: boolean;
 }
 
-export const SOUNDS: SoundDef[] = [
-  { id: 'ocean', name: 'Ocean', note: 'Waves, no gulls' },
-  { id: 'shore', name: 'Shore', note: 'A real beach, recorded' },
-  { id: 'rain', name: 'Rain', note: 'Steady shower' },
-  { id: 'fan', name: 'Fan', note: 'Low whir' },
-  { id: 'stream', name: 'Stream', note: 'Moving water' },
-  { id: 'brook', name: 'Brook', note: 'A real creek, recorded' },
-  { id: 'brown', name: 'Brown', note: 'Deep rumble' },
-  { id: 'pink', name: 'Pink', note: 'Soft, balanced' },
-  { id: 'white', name: 'White', note: 'Bright hiss' },
-  { id: 'haunt', name: 'Haunt', note: 'Whispers & screams' },
+/** The library's sections, in order. */
+export const GROUPS: { id: GroupId; name: string }[] = [
+  { id: 'water', name: 'Water' },
+  { id: 'noise', name: 'Hum & noise' },
+  { id: 'seasonal', name: 'Seasonal' },
+  { id: 'yours', name: 'Your sounds' },
 ];
+
+export const SOUNDS: SoundDef[] = [
+  { id: 'ocean', name: 'Ocean', note: 'Waves, no gulls', group: 'water' },
+  { id: 'shore', name: 'Shore', note: 'A real beach, recorded', group: 'water' },
+  { id: 'rain', name: 'Rain', note: 'Steady shower', group: 'water' },
+  { id: 'stream', name: 'Stream', note: 'Moving water', group: 'water' },
+  { id: 'brook', name: 'Brook', note: 'A real creek, recorded', group: 'water' },
+  { id: 'fan', name: 'Fan', note: 'Low whir', group: 'noise' },
+  { id: 'brown', name: 'Brown', note: 'Deep rumble', group: 'noise' },
+  { id: 'pink', name: 'Pink', note: 'Soft, balanced', group: 'noise' },
+  { id: 'white', name: 'White', note: 'Bright hiss', group: 'noise' },
+  { id: 'haunt', name: 'Haunt', note: 'Whispers & screams', group: 'seasonal' },
+];
+
+/** A painting per sound in public/art/ (built by scripts/art.sh); the user's own files share one. */
+export const artFor = (s: SoundDef) => `/art/${s.custom ? 'yours' : s.id}.webp`;
 
 /**
  * Recorded clips per built-in sound, in public/sounds/, loaded when the sound is first turned on.

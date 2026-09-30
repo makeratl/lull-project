@@ -143,7 +143,7 @@ describe('state', () => {
 
   it('custom files are left out of saved mixes', () => {
     const { c } = track(makeCore({ active: { ocean: true }, levels: { ocean: 0.5 } }));
-    c.s.customs = [{ id: 'file-1', name: 'Fan at home', note: 'Your recording', custom: true }];
+    c.s.customs = [{ id: 'file-1', name: 'Fan at home', note: 'Your recording', group: 'yours' as const, custom: true }];
     c.setLevel('file-1', 0.6);
     c.saveMix();
     expect(c.s.mixes.at(-1)).toEqual({ name: 'Ocean', mix: { ocean: 0.5 } });
@@ -158,6 +158,25 @@ describe('state', () => {
     expect(viewModel(c).haloPeriod).toBe(20);
     c.toggleSound('ocean');
     expect(viewModel(c).haloPeriod).toBe(10);
+  });
+
+  it('sheet: Tonight lists what is on, the library groups sounds, the timer folds to one line', () => {
+    const { c } = track(makeCore({ active: { ocean: true, brown: true }, levels: { ocean: 0.65, brown: 0.25 }, timer: 60, fade: 10 }));
+    let vm = viewModel(c);
+    expect(vm.tonight.map(x => [x.id, x.pct])).toEqual([['ocean', 65], ['brown', 25]]);
+    expect(vm.library.map(g => g.id)).toEqual(['water', 'noise', 'seasonal', 'yours']);
+    expect(vm.library.find(g => g.id === 'noise')!.summary).toBe('Brown on');
+    expect(vm.library.find(g => g.id === 'water')!.sounds.map(x => x.id)).toEqual(['ocean', 'shore', 'rain', 'stream', 'brook']);
+    expect(vm.tonight[0].art).toBe('/art/ocean.webp');
+    expect(vm.timerSummary).toBe('60 min · fades over 10 min');
+    c.setTimer(15);
+    c.setFade(20);
+    expect(viewModel(c).timerSummary).toBe('15 min · fades over 8 min');
+    c.setTimer(0);
+    vm = viewModel(c);
+    expect(vm.timerSummary).toBe('All night');
+    c.s.customs = [{ id: 'file-1', name: 'Fan at home', note: 'Your recording', group: 'yours', custom: true }];
+    expect(viewModel(c).library.find(g => g.id === 'yours')!.sounds[0].art).toBe('/art/yours.webp');
   });
 
   it('greeting uses the name', () => {

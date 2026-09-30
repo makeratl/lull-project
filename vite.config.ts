@@ -75,7 +75,7 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,svg,png,woff2,mp3}'],
+          globPatterns: ['**/*.{js,css,html,svg,png,webp,woff2,mp3}'],
           // The field recordings are ~2.2 MB each; the default 2 MB cap would leave them out of offline.
           maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
           // The social card and brand files are for sharing, not for running the app offline.

@@ -2,15 +2,21 @@ import type { Lull } from '../core/lull';
 import type { ViewModel } from '../core/viewModel';
 import type { Me } from '../auth/session';
 import { ChangePassword } from '../auth/ChangePassword';
+import { Fold } from './Fold';
 
 const num = (e: Event) => Number((e.target as HTMLInputElement).value);
 const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 
+type Sound = ViewModel['sounds'][number];
+
+/**
+ * The Sleep sheet, a mixer over a library:
+ * timer (folded) · Tonight (only what's on, with levels) · Mixes · the library by group · settings (folded).
+ */
 export function SleepSheet({ v, core, me, onSignOut, onAdmin }: { v: ViewModel; core: Lull; me: Me; onSignOut: () => void; onAdmin: () => void }) {
   return (
     <>
-      <div class="section">
-        <span class="label">Sleep timer</span>
+      <Fold id="timer" title="Sleep timer" summary={v.timerSummary}>
         <div class="chips">
           {v.timers.map(t => (
             <button key={t.value} class={`chip${t.on ? ' on' : ''}`} onClick={() => core.setTimer(t.value)}>{t.label}</button>
@@ -22,54 +28,37 @@ export function SleepSheet({ v, core, me, onSignOut, onAdmin }: { v: ViewModel; 
             <button key={f.value} class={`chip small${f.on ? ' on' : ''}`} onClick={() => core.setFade(f.value)}>{f.label}</button>
           ))}
         </div>
-      </div>
-
-      {v.oceanOn && (
-        <div class="card">
-          <div class="row-between" style={{ alignItems: 'baseline', gap: '12px' }}>
-            <span class="card-title">Wave rhythm</span>
-            <span class="card-note">{v.waveLabel}</span>
-          </div>
-          <input type="range" min={5} max={20} step={1} value={v.waveSlider} onInput={e => core.setWave(25 - num(e))} aria-label="Wave rhythm" />
-          <div class="range-ends"><span>Slow swells</span><span>Shoreline</span></div>
-        </div>
-      )}
+      </Fold>
 
       <div class="section">
-        <div class="row-between">
-          <span class="label">Sounds</span>
-          <label class="link">
-            + Add your own
-            <input
-              type="file"
-              accept="audio/*"
-              style={{ display: 'none' }}
-              onChange={e => {
-                const input = e.target as HTMLInputElement, f = input.files?.[0];
-                input.value = '';
-                core.addFile(f);
-              }}
-            />
-          </label>
-        </div>
-        {v.fileError && <span class="error" role="alert">{v.fileError}</span>}
-        <div class="grid">
-          {v.sounds.map(s => (
-            <div key={s.id} class={`tile${s.on ? ' on' : ''}`}>
-              <div class="tile-top">
-                <button class="tile-btn" onClick={() => core.toggleSound(s.id)} aria-pressed={s.on}>
-                  <span class="tile-name-row">
-                    <span class="dot" />
-                    <span class="tile-name">{s.name}</span>
-                  </span>
-                  <span class="note">{s.note}</span>
-                </button>
-                {s.custom && <button class="x" aria-label={`Remove ${s.name}`} onClick={() => core.removeFile(s.id)}>×</button>}
+        <span class="label">Tonight</span>
+        {v.tonight.length ? (
+          <div class="mixer">
+            {v.tonight.map(s => (
+              <div key={s.id} class="mixer-row">
+                <div class="mixer-top">
+                  <span class="mixer-art" style={{ backgroundImage: `url(${s.art})` }} />
+                  <span class="mixer-name">{s.name}</span>
+                  <span class="mixer-pct">{s.pct}</span>
+                  <button class="x" aria-label={`Turn off ${s.name}`} onClick={() => core.toggleSound(s.id)}>×</button>
+                </div>
+                <input type="range" min={0} max={100} value={s.pct} onInput={e => core.setLevel(s.id, num(e) / 100)} aria-label={`${s.name} volume`} />
+                {s.id === 'ocean' && (
+                  <div class="mixer-sub">
+                    <div class="row-between">
+                      <span class="note">Wave rhythm</span>
+                      <span class="note">{v.waveLabel}</span>
+                    </div>
+                    <input type="range" min={5} max={20} step={1} value={v.waveSlider} onInput={e => core.setWave(25 - num(e))} aria-label="Wave rhythm" />
+                    <div class="range-ends"><span>Slow swells</span><span>Shoreline</span></div>
+                  </div>
+                )}
               </div>
-              <input type="range" min={0} max={100} value={s.pct} onInput={e => core.setLevel(s.id, num(e) / 100)} aria-label={`${s.name} volume`} />
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <span class="note">Nothing on yet. Pick a sound below.</span>
+        )}
       </div>
 
       <div class="section tight">
@@ -77,24 +66,43 @@ export function SleepSheet({ v, core, me, onSignOut, onAdmin }: { v: ViewModel; 
           <span class="label">Mixes</span>
           <button class="link" onClick={() => core.saveMix()}>Save this mix</button>
         </div>
-        <div class="mix-list">
+        <div class="mix-strip">
           {v.mixes.map(m => (
-            <div key={m.index} class="mix-row">
-              <button class={`mix-btn${m.on ? ' on' : ''}`} onClick={() => core.applyMix(m.mix)}>
-                <span class="dot" />
-                <span class="mix-text">
-                  <span class="mix-name">{m.name}</span>
-                  <span class="note">{m.summary}</span>
-                </span>
+            <div key={m.index} class={`mix-chip${m.on ? ' on' : ''}`}>
+              <button class="mix-chip-btn" onClick={() => core.applyMix(m.mix)} aria-pressed={m.on}>
+                <span class="mix-name">{m.name}</span>
+                <span class="note">{m.summary}</span>
               </button>
-              <button class="x big" aria-label={`Remove ${m.name}`} onClick={() => core.deleteMix(m.index)}>×</button>
+              <button class="x" aria-label={`Remove ${m.name}`} onClick={() => core.deleteMix(m.index)}>×</button>
             </div>
           ))}
         </div>
       </div>
 
-      <div class="section">
-        <span class="label">Playback</span>
+      <div class="section library">
+        <span class="label">Sounds</span>
+        {v.library.map(g => (
+          <Fold
+            key={g.id}
+            id={`lib-${g.id}`}
+            open={g.id === 'water'}
+            title={g.name}
+            summary={g.summary}
+            action={g.id === 'yours' && <AddYourOwn core={core} />}
+          >
+            {g.id === 'yours' && v.fileError && <span class="error" role="alert">{v.fileError}</span>}
+            {g.sounds.length ? (
+              <div class="art-grid">
+                {g.sounds.map(s => <ArtTile key={s.id} s={s} core={core} />)}
+              </div>
+            ) : (
+              <span class="note">Add a recording of your own: a fan at home, a favourite rain track.</span>
+            )}
+          </Fold>
+        ))}
+      </div>
+
+      <Fold id="settings" title="Playback & account">
         <button class="toggle-row" role="switch" aria-checked={v.safeMode} onClick={() => core.setSafeMode(!v.safeMode)}>
           <span class="mix-text">
             <span class="mix-name">Lock-screen safe mode</span>
@@ -107,11 +115,7 @@ export function SleepSheet({ v, core, me, onSignOut, onAdmin }: { v: ViewModel; 
             If sound stops overnight, set Chrome’s battery usage to “Unrestricted” in Android settings.
           </span>
         )}
-      </div>
-
-      <div class="section">
-        <span class="label">Account</span>
-        <div class="row-between" style={{ gap: '12px' }}>
+        <div class="row-between account">
           <span class="mix-text">
             <span class="mix-name">{me.name}</span>
             <span class="note">{me.email}</span>
@@ -120,7 +124,41 @@ export function SleepSheet({ v, core, me, onSignOut, onAdmin }: { v: ViewModel; 
         </div>
         <ChangePassword email={me.email} />
         {me.role === 'admin' && <button class="link" onClick={onAdmin}>Invite &amp; admin</button>}
-      </div>
+      </Fold>
     </>
+  );
+}
+
+/** A sound in the library: its painting, name and note. Tap to turn it on or off. */
+function ArtTile({ s, core }: { s: Sound; core: Lull }) {
+  return (
+    <div class={`art-tile${s.on ? ' on' : ''}`} style={{ backgroundImage: `url(${s.art})` }}>
+      <button class="art-btn" onClick={() => core.toggleSound(s.id)} aria-pressed={s.on}>
+        <span class="art-name-row">
+          <span class="dot" />
+          <span class="art-name">{s.name}</span>
+        </span>
+        <span class="art-note">{s.note}</span>
+      </button>
+      {s.custom && <button class="x art-x" aria-label={`Remove ${s.name}`} onClick={() => core.removeFile(s.id)}>×</button>}
+    </div>
+  );
+}
+
+function AddYourOwn({ core }: { core: Lull }) {
+  return (
+    <label class="link">
+      + Add
+      <input
+        type="file"
+        accept="audio/*"
+        style={{ display: 'none' }}
+        onChange={e => {
+          const input = e.target as HTMLInputElement, f = input.files?.[0];
+          input.value = '';
+          core.addFile(f);
+        }}
+      />
+    </label>
   );
 }

@@ -90,7 +90,7 @@ export class Lull {
       this.blobs[r.id] = r.blob;
       try { this.buffers[r.id] = await decode(await r.blob.arrayBuffer()); } catch { /* unplayable now; stays listed */ }
     }
-    this.s.customs = recs.map(r => ({ id: r.id, name: r.name, note: 'Your recording', custom: true }));
+    this.s.customs = recs.map(r => ({ id: r.id, name: r.name, note: 'Your recording', group: 'yours' as const, custom: true }));
     this.emit();
     this.ensureAssets();
     if (this.s.safeMode) this.safeEngine().prepare(this.playState());
@@ -293,7 +293,7 @@ export class Lull {
     await putFile({ id, name, blob: file });
     this.set(s => ({
       fileError: null,
-      customs: [...s.customs, { id, name, note: 'Your recording', custom: true }],
+      customs: [...s.customs, { id, name, note: 'Your recording', group: 'yours' as const, custom: true }],
       active: { ...s.active, [id]: true },
       levels: { ...s.levels, [id]: 0.6 },
     }));

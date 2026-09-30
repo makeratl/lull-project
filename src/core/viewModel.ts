@@ -1,5 +1,5 @@
 /** Everything the screens show, derived from core state. Plain data plus actions. */
-import { FADES, LENGTHS, PATTERNS, SOUNDS, TIMERS, type PatternId, type Step } from './constants';
+import { FADES, GROUPS, LENGTHS, PATTERNS, SOUNDS, TIMERS, artFor, type PatternId, type Step } from './constants';
 import { fadeSeconds, fmt, rounds, statusLine } from './format';
 import type { Lull } from './lull';
 
@@ -12,6 +12,7 @@ export const viewModel = (c: Lull, name = '') => {
   const step: Step | null = b ? (b.i < 0 ? ['Settle in', 2, 0] : P!.steps[b.i]) : null;
   const R = PATTERNS[s.relax.p];
   const trimmed = name.trim();
+  const sounds = c.all().map(x => ({ ...x, on: !!s.active[x.id], custom: !!x.custom, art: artFor(x), pct: Math.round((s.levels[x.id] ?? 0.5) * 100) }));
 
   return {
     clock,
@@ -25,7 +26,15 @@ export const viewModel = (c: Lull, name = '') => {
     wave: s.wave,
     waveSlider: 25 - s.wave,
     waveLabel: `About one wave every ${s.wave} s`,
-    sounds: c.all().map(x => ({ ...x, on: !!s.active[x.id], custom: !!x.custom, pct: Math.round((s.levels[x.id] ?? 0.5) * 100) })),
+    sounds,
+    /** What's playing tonight: the mixer rows. */
+    tonight: sounds.filter(x => x.on),
+    /** The library, by group. Your sounds is always shown (it holds "Add your own"). */
+    library: GROUPS.map(g => {
+      const list = sounds.filter(x => x.group === g.id), on = list.filter(x => x.on);
+      return { ...g, sounds: list, summary: on.length ? `${on.map(x => x.name).join(', ')} on` : '' };
+    }).filter(g => g.sounds.length || g.id === 'yours'),
+    timerSummary: s.timer ? `${s.timer} min · fades over ${Math.round(fadeSeconds(s.timer, s.fade) / 60)} min` : 'All night',
     fileError: s.fileError,
     timers: TIMERS.map(v => ({ value: v, label: v ? `${v}m` : 'All night', on: s.timer === v })),
     fades: FADES.map(v => ({ value: v, label: `${v} min`, on: s.fade === v })),
