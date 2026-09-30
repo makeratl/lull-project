@@ -7,18 +7,21 @@
  */
 import { fadeSeconds } from './format';
 import { buildSound, crossfadeLoop, genNoise } from './recipes';
-import { levelOf, wanted, type Engine, type PlayState } from './engine';
+import { assetsFor, levelOf, wanted, type Engine, type PlayState } from './engine';
 
-export const SAFE_RATE = 32000; // plenty for noise; keeps a 2-minute stereo loop around 15 MB
-const TARGET_LOOP = 120;
+export const SAFE_RATE = 32000; // plenty for noise and water; a 2-minute stereo loop is about 15 MB
 const TAIL = 0.5;
+/** Seconds rendered and thrown away first, so filters have settled. */
+const PRE_ROLL = 1;
 
-/** Loop length in seconds. With Ocean on, a whole number of waves so the swell never jumps. */
-export const loopSeconds = (wave: number, oceanOn: boolean, target = TARGET_LOOP) =>
-  oceanOn ? Math.max(1, Math.round(target / wave)) * wave : target;
+/** Sounds that loop a long recording: their first clip. */
+const RECORDED = ['shore', 'brook', 'ocean'];
 
-/** Seconds rendered and thrown away first, so the wash delay line and filters have settled. Whole waves, to keep phase. */
-export const preRoll = (wave: number) => Math.ceil(4 / wave) * wave;
+/**
+ * Loop length in seconds: 2 minutes, or long enough for the longest active recording to play through
+ * before it repeats, up to 3 minutes (about 23 MB).
+ */
+export const loopSeconds = (recordings: number[]) => Math.round(Math.min(180, Math.max(120, ...recordings)));
 
 /** How many loop-length fade segments to use, and the resulting fade length. Never longer than the timer. */
 export const fadePlan = (timerMin: number, fadeMin: number, loopSec: number) => {
@@ -60,24 +63,23 @@ export interface Loop {
 
 const mixKey = (p: PlayState) => {
   const on = Object.keys(p.active).filter(id => wanted({ ...p, playing: true }, id)).sort();
-  return JSON.stringify([on.map(id => [id, Math.round(levelOf(p, id) * 100), !!p.buffers[id]]), on.includes('ocean') ? p.wave : 0, p.clips?.length ?? 0]);
+  return JSON.stringify([on.map(id => [id, Math.round(levelOf(p, id) * 100), !!p.buffers[id], p.assets?.[id]?.length ?? 0]), on.includes('ocean') ? p.wave : 0]);
 };
 
 /** Render the mix into a seamless loop. */
 export const renderLoop = async (p: PlayState): Promise<Omit<Loop, 'url'>> => {
   const key = mixKey(p);
   const on = Object.keys(p.active).filter(id => wanted({ ...p, playing: true }, id));
-  const oceanOn = on.includes('ocean');
-  const L = loopSeconds(p.wave, oceanOn), W = oceanOn ? preRoll(p.wave) : 1;
+  const L = loopSeconds(on.filter(id => RECORDED.includes(id)).map(id => p.assets?.[id]?.[0]?.duration ?? 0)), W = PRE_ROLL;
   const sr = SAFE_RATE, len = Math.round(L * sr), fade = Math.round(TAIL * sr), off = Math.round(W * sr);
   const ctx = new OfflineAudioContext(2, off + len + fade, sr);
   const noise = genNoise(ctx);
-  // Scares must end before the crossfaded tail, or one would be cut off at the seam.
-  const longest = Math.max(0, ...(p.clips ?? []).map(c => c.duration));
   for (const id of on) {
-    const b = buildSound(ctx, id, noise, p.wave, ctx.destination, p.buffers[id], p.clips && { clips: p.clips, from: W });
-    if (b) b.g.gain.value = levelOf(p, id) * b.base;
-    b?.scare?.fill(W + L - longest);
+    const b = buildSound(ctx, id, noise, p.wave, ctx.destination, p.buffers[id], assetsFor(p, id, W));
+    if (!b) continue;
+    b.g.gain.value = levelOf(p, id) * b.base;
+    // One-shots must end before the crossfaded tail, or one would be cut off at the seam.
+    b.scatter?.fill(W + L - b.scatter.longest);
   }
   const out = await ctx.startRendering();
   const pcm = [0, 1].map(ch => crossfadeLoop(out.getChannelData(ch).subarray(off), len, fade));

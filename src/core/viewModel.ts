@@ -24,7 +24,7 @@ export const viewModel = (c: Lull, name = '') => {
     oceanOn,
     wave: s.wave,
     waveSlider: 25 - s.wave,
-    waveLabel: `One wave every ${s.wave} s`,
+    waveLabel: `About one wave every ${s.wave} s`,
     sounds: c.all().map(x => ({ ...x, on: !!s.active[x.id], custom: !!x.custom, pct: Math.round((s.levels[x.id] ?? 0.5) * 100) })),
     fileError: s.fileError,
     timers: TIMERS.map(v => ({ value: v, label: v ? `${v}m` : 'All night', on: s.timer === v })),

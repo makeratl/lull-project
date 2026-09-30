@@ -44,4 +44,20 @@ export const putFile = (rec: FileRecord) => tx(st => st.put(rec));
 export const deleteFile = (id: string) => tx(st => st.delete(id));
 
 /** Decode without needing a running AudioContext (works before the first tap). */
-export const decode = (data: ArrayBuffer) => new OfflineAudioContext(2, 1, 44100).decodeAudioData(data);
+export const decode = (data: ArrayBuffer, rate = 44100) => new OfflineAudioContext(2, 1, rate).decodeAudioData(data);
+
+/**
+ * Drop near-silent samples at either end (at most `max` seconds each). MP3 encoders pad both ends,
+ * and some browsers keep that padding when decoding, which would put a gap in every loop.
+ */
+export const trimEdges = (b: AudioBuffer, floor = 0.002, max = 0.25) => {
+  const chs = [...Array(b.numberOfChannels).keys()].map(c => b.getChannelData(c)), lim = Math.round(max * b.sampleRate);
+  const loud = (i: number) => chs.some(d => Math.abs(d[i]) > floor);
+  let a = 0, z = b.length;
+  while (a < lim && a < z - 1 && !loud(a)) a++;
+  while (b.length - z < lim && z > a + 1 && !loud(z - 1)) z--;
+  if (a === 0 && z === b.length) return b;
+  const out = new AudioBuffer({ length: z - a, sampleRate: b.sampleRate, numberOfChannels: b.numberOfChannels });
+  chs.forEach((d, c) => out.copyToChannel(d.subarray(a, z), c));
+  return out;
+};

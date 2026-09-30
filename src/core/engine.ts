@@ -12,8 +12,8 @@ export interface PlayState {
   fade: number;
   endsAt: number | null;
   buffers: Record<string, AudioBuffer>;
-  /** Haunt's one-shots, once loaded. */
-  clips?: AudioBuffer[];
+  /** Recorded clips per built-in sound (Haunt's one-shots, and so on), once loaded. */
+  assets?: Record<string, AudioBuffer[]>;
 }
 
 export interface Engine {
@@ -31,8 +31,14 @@ export interface Engine {
 export const levelOf = (p: PlayState, id: string) => p.levels[id] ?? 0.5;
 export const wanted = (p: PlayState, id: string) => p.playing && !!p.active[id] && levelOf(p, id) > 0;
 
-/** Scares are scheduled this far ahead on the audio clock, so throttled timers in the background can keep up. */
-const SCARE_AHEAD = 180;
+/** One-shots are scheduled this far ahead on the audio clock, so throttled timers in the background can keep up. */
+const SCATTER_AHEAD = 180;
+
+/** A sound's clips and the time its one-shots may start from, as `buildSound` takes them. */
+export const assetsFor = (p: PlayState, id: string, from: number) => {
+  const clips = p.assets?.[id];
+  return clips?.length ? { clips, from } : undefined;
+};
 
 /** The live Web Audio engine, a port of the reference `lull-core.js`. */
 export class LiveEngine implements Engine {
@@ -42,7 +48,7 @@ export class LiveEngine implements Engine {
   el: HTMLAudioElement | null = null;
   nodes: Record<string, Built> = {};
   susp?: ReturnType<typeof setTimeout>;
-  scares?: ReturnType<typeof setInterval>;
+  scatter?: ReturnType<typeof setInterval>;
 
   ensureCtx() {
     if (this.ctx) return this.ctx;
@@ -79,10 +85,10 @@ export class LiveEngine implements Engine {
       const want = wanted(p, id);
       let n = this.nodes[id];
       if (want && !n) {
-        const built = buildSound(this.ctx!, id, this.noise!, p.wave, this.master!, p.buffers[id], p.clips && { clips: p.clips, from: t });
+        const built = buildSound(this.ctx!, id, this.noise!, p.wave, this.master!, p.buffers[id], assetsFor(p, id, t));
         if (!built) return;
         n = this.nodes[id] = built;
-        built.scare?.fill(t + SCARE_AHEAD);
+        built.scatter?.fill(t + SCATTER_AHEAD);
       }
       if (!n) return;
       n.g.gain.setTargetAtTime(want ? (p.levels[id] ?? 0.5) * n.base : 0, t, 0.25);
@@ -126,10 +132,10 @@ export class LiveEngine implements Engine {
       });
     this.sync(p);
     this.schedule(p);
-    clearInterval(this.scares);
-    this.scares = setInterval(() => {
+    clearInterval(this.scatter);
+    this.scatter = setInterval(() => {
       const t = this.ctx!.currentTime;
-      Object.values(this.nodes).forEach(n => n.scare?.fill(t + SCARE_AHEAD));
+      Object.values(this.nodes).forEach(n => n.scatter?.fill(t + SCATTER_AHEAD));
     }, 30000);
   }
 
@@ -140,7 +146,7 @@ export class LiveEngine implements Engine {
     m.setValueAtTime(m.value, t);
     m.linearRampToValueAtTime(0, t + 1);
     clearTimeout(this.susp);
-    clearInterval(this.scares);
+    clearInterval(this.scatter);
     this.susp = setTimeout(() => {
       this.ctx?.suspend();
       this.el?.pause();
@@ -153,16 +159,15 @@ export class LiveEngine implements Engine {
 
   setWave(p: PlayState) {
     const n = this.nodes.ocean;
-    if (n?.osc && n.dl && this.ctx) {
-      const t = this.ctx.currentTime;
-      n.osc.frequency.setTargetAtTime(1 / p.wave, t, 0.8);
-      n.dl.delayTime.setTargetAtTime(p.wave * 0.18, t, 0.8);
-    }
+    if (!n?.setWave || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    n.setWave(p.wave, t);
+    n.scatter?.fill(t + SCATTER_AHEAD);
   }
 
   destroy() {
     clearTimeout(this.susp);
-    clearInterval(this.scares);
+    clearInterval(this.scatter);
     try {
       this.el?.pause();
       this.ctx?.close();

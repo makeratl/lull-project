@@ -1,4 +1,4 @@
-export type SoundId = 'ocean' | 'rain' | 'fan' | 'stream' | 'brown' | 'pink' | 'white' | 'haunt';
+export type SoundId = 'ocean' | 'shore' | 'rain' | 'fan' | 'stream' | 'brook' | 'brown' | 'pink' | 'white' | 'haunt';
 
 export interface SoundDef {
   id: string;
@@ -9,20 +9,33 @@ export interface SoundDef {
 
 export const SOUNDS: SoundDef[] = [
   { id: 'ocean', name: 'Ocean', note: 'Waves, no gulls' },
+  { id: 'shore', name: 'Shore', note: 'A real beach, recorded' },
   { id: 'rain', name: 'Rain', note: 'Steady shower' },
   { id: 'fan', name: 'Fan', note: 'Low whir' },
   { id: 'stream', name: 'Stream', note: 'Moving water' },
+  { id: 'brook', name: 'Brook', note: 'A real creek, recorded' },
   { id: 'brown', name: 'Brown', note: 'Deep rumble' },
   { id: 'pink', name: 'Pink', note: 'Soft, balanced' },
   { id: 'white', name: 'White', note: 'Bright hiss' },
   { id: 'haunt', name: 'Haunt', note: 'Whispers & screams' },
 ];
 
-/** One-shots in public/sounds/haunt/, built from Chatterbox lines and ACE-Step screams. */
-export const HAUNT_CLIPS = [
-  'behind-you', 'come-play', 'dont-fall-asleep', 'i-see-you', 'let-me-in', 'listening', 'so-cold', 'still-awake', 'the-light', 'under-the-bed',
-  'groan', 'howl', 'moan', 'no', 'shriek', 'wail', 'knock',
-].map(n => `/sounds/haunt/${n}.mp3`);
+/**
+ * Recorded clips per built-in sound, in public/sounds/, loaded when the sound is first turned on.
+ * Built by scripts/haunt.sh and scripts/water.ts (sources and credits in public/sounds/CREDITS.md).
+ */
+export const ASSETS: Record<string, string[]> = {
+  // Field recordings (Freesound, CC0), looped seamlessly.
+  shore: ['/sounds/shore.mp3'],
+  brook: ['/sounds/brook.mp3'],
+  // The first is the bed (the beach, heard from further off); the rest are single breaking waves.
+  ocean: ['/sounds/shore.mp3', ...[1, 2, 3, 4, 5, 6, 7, 8].map(n => `/sounds/ocean/wave-${n}.mp3`)],
+  // Chatterbox lines and ACE-Step screams.
+  haunt: [
+    'behind-you', 'come-play', 'dont-fall-asleep', 'i-see-you', 'let-me-in', 'listening', 'so-cold', 'still-awake', 'the-light', 'under-the-bed',
+    'groan', 'howl', 'moan', 'no', 'shriek', 'wail', 'knock',
+  ].map(n => `/sounds/haunt/${n}.mp3`),
+};
 
 export type PatternId = '478' | 'box' | 'even';
 /** [label, seconds, inhaled (1) or exhaled (0)] */

@@ -3,8 +3,8 @@ import { fadeSeconds, fmt, statusLine } from '../src/core/format';
 import { KEY, Lull, loadSaved } from '../src/core/lull';
 import { viewModel } from '../src/core/viewModel';
 import type { Engine } from '../src/core/engine';
-import { clipBag, crossfadeLoop, noiseSamples } from '../src/core/recipes';
-import { encodeWav, fadePlan, loopSeconds, preRoll } from '../src/core/safeMode';
+import { bubbleSamples, clipBag, crossfadeLoop, noiseSamples, scatter } from '../src/core/recipes';
+import { encodeWav, fadePlan, loopSeconds } from '../src/core/safeMode';
 import { formatCode, inviteLink, isValidCode, normalizeCode } from '../shared/codes';
 
 const memStorage = (init: Record<string, string> = {}) => {
@@ -152,7 +152,7 @@ describe('state', () => {
     expect(viewModel(c).waveSlider).toBe(14);
     c.setWave(20);
     expect(viewModel(c).waveSlider).toBe(5);
-    expect(viewModel(c).waveLabel).toBe('One wave every 20 s');
+    expect(viewModel(c).waveLabel).toBe('About one wave every 20 s');
     expect(viewModel(c).haloPeriod).toBe(20);
     c.toggleSound('ocean');
     expect(viewModel(c).haloPeriod).toBe(10);
@@ -214,14 +214,12 @@ describe('breathing', () => {
 });
 
 describe('safe mode maths', () => {
-  it('loop is a whole number of waves near two minutes', () => {
-    expect(loopSeconds(11, true)).toBe(121);
-    expect(loopSeconds(20, true)).toBe(120);
-    expect(loopSeconds(7, true)).toBe(119);
-    expect(loopSeconds(11, false)).toBe(120);
-    for (let w = 5; w <= 20; w++) expect(loopSeconds(w, true) % w).toBe(0);
-    expect(preRoll(11)).toBe(11);
-    expect(preRoll(5)).toBe(5);
+  it('loop is two minutes, or long enough for a recording, up to three', () => {
+    expect(loopSeconds([])).toBe(120);
+    expect(loopSeconds([0])).toBe(120);
+    expect(loopSeconds([179.2])).toBe(179);
+    expect(loopSeconds([90, 150.4])).toBe(150);
+    expect(loopSeconds([600])).toBe(180);
   });
 
   it('fade plan never exceeds the timer', () => {
@@ -254,6 +252,60 @@ describe('safe mode maths', () => {
     const r = new DataView(encodeWav([a, b], 32000, i => (i === 0 ? 0.5 : 1), 2));
     expect(r.getInt16(44, true)).toBe(Math.trunc(0.5 * 0x7fff));
     expect(r.getInt16(44 + 4, true)).toBe(-0x8000);
+  });
+});
+
+describe('water', () => {
+  it('bubbles: normalized, bounded, and different each time', () => {
+    const sr = 32000, a = bubbleSamples(sr, sr * 4), b = bubbleSamples(sr, sr * 4);
+    const peak = (x: Float32Array) => x.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+    const rms = Math.sqrt(a.reduce((s, x) => s + x * x, 0) / a.length);
+    expect(rms).toBeCloseTo(0.1, 3);
+    expect(peak(a)).toBeLessThan(1);
+    expect(a.some((x, i) => x !== b[i])).toBe(true);
+    // Dense enough to be water, not a drip: no silent quarter-second anywhere.
+    for (let q = 0; q < 16; q++) expect(peak(a.subarray((q * sr) / 4, ((q + 1) * sr) / 4))).toBeGreaterThan(0.05);
+  });
+});
+
+describe('scatter', () => {
+  // Just enough of an audio context to record when clips start.
+  const fakeCtx = () => {
+    const started: number[] = [], stopped: number[] = [];
+    const param = () => ({ value: 0 });
+    const node = () => ({ connect: () => {}, disconnect: () => {} });
+    const ctx = {
+      createGain: () => ({ ...node(), gain: param() }),
+      createStereoPanner: () => ({ ...node(), pan: param() }),
+      createBufferSource: () => {
+        let at = 0;
+        return { ...node(), buffer: null, playbackRate: param(), onended: null, start: (t: number) => started.push((at = t)), stop: () => stopped.push(at) };
+      },
+    } as unknown as BaseAudioContext;
+    return { ctx, started, stopped };
+  };
+  const clip = { duration: 5 } as AudioBuffer;
+
+  it('spaces clips within the gap range, and a reset applies a new spacing from the last one heard', () => {
+    const { ctx, started, stopped } = fakeCtx();
+    let w = 10;
+    const sc = scatter(ctx, [clip, clip], {} as AudioNode, 0, [], { first: [1, 2], gap: () => [w * 0.7, w * 1.3], gain: [1, 1], pan: [0, 0] });
+    sc.fill(300);
+    expect(started[0]).toBeGreaterThanOrEqual(1);
+    expect(started[0]).toBeLessThanOrEqual(2);
+    for (let i = 1; i < started.length; i++) {
+      expect(started[i] - started[i - 1]).toBeGreaterThanOrEqual(7);
+      expect(started[i] - started[i - 1]).toBeLessThanOrEqual(13);
+    }
+    // At t = 100 the slider moves to 20 s: later clips are dropped and rescheduled at the new spacing.
+    const heard = started.filter(t => t <= 100), before = started.length;
+    w = 20;
+    sc.reset(100);
+    expect(stopped.length).toBe(before - heard.length);
+    sc.fill(400);
+    const after = started.slice(before);
+    expect(after[0] - heard.at(-1)!).toBeGreaterThanOrEqual(14);
+    for (let i = 1; i < after.length; i++) expect(after[i] - after[i - 1]).toBeGreaterThanOrEqual(14);
   });
 });
 

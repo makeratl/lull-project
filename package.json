@@ -11,6 +11,8 @@
     "typecheck": "tsc -b",
     "brand": "tsx scripts/brand.ts",
     "haunt": "bash scripts/haunt.sh",
+    "sounds:fetch": "tsx scripts/freesound.ts",
+    "water": "tsx scripts/water.ts",
     "bootstrap": "tsx scripts/bootstrap-admin.ts",
     "bootstrap:prod": "ENV_FILE=.env.production.local tsx scripts/bootstrap-admin.ts"
   },

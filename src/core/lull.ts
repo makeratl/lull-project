@@ -2,9 +2,9 @@
  * App state and actions: a typed port of the reference `lull-core.js`.
  * Framework-free; the UI subscribes and renders `viewModel(core)`.
  */
-import { HAUNT_CLIPS, PATTERNS, PRESETS, SOUNDS, isIOS, type Mix, type PatternId, type SoundDef } from './constants';
+import { ASSETS, PATTERNS, PRESETS, SOUNDS, isIOS, type Mix, type PatternId, type SoundDef } from './constants';
 import { LiveEngine, type Engine, type PlayState } from './engine';
-import { allFiles, decode, deleteFile, putFile } from './files';
+import { allFiles, decode, deleteFile, putFile, trimEdges } from './files';
 import { SafeEngine } from './safeMode';
 
 export const KEY = 'lull.v2';
@@ -64,7 +64,9 @@ export class Lull {
   last = Date.now();
   buffers: Record<string, AudioBuffer> = {};
   blobs: Record<string, Blob> = {};
-  clips: AudioBuffer[] = [];
+  assets: Record<string, AudioBuffer[]> = {};
+  private loadingAssets = new Set<string>();
+  private clips = new Map<string, Promise<AudioBuffer | null>>();
   live = new LiveEngine();
   safe: SafeEngine | null = null;
   private listeners = new Set<Listener>();
@@ -88,17 +90,41 @@ export class Lull {
     }
     this.s.customs = recs.map(r => ({ id: r.id, name: r.name, note: 'Your recording', custom: true }));
     this.emit();
+    this.ensureAssets();
     if (this.s.safeMode) this.safeEngine().prepare(this.playState());
-    this.loadClips();
   }
 
-  /** Haunt's one-shots (precached by the service worker, so this works offline). */
-  async loadClips() {
-    const got = await Promise.all(
-      HAUNT_CLIPS.map(url => fetch(url).then(r => (r.ok ? r.arrayBuffer() : Promise.reject(r.status))).then(decode).catch(() => null)),
-    );
-    this.clips = got.filter((b): b is AudioBuffer => !!b);
-    if (this.clips.length) this.mixChanged();
+  /**
+   * Load the recorded clips of every active sound that has them. Only active ones: a three-minute
+   * recording is ~45 MB decoded. The files are precached by the service worker, so this works offline.
+   */
+  ensureAssets() {
+    for (const id of Object.keys(ASSETS)) if (this.s.active[id] && !this.assets[id] && !this.loadingAssets.has(id)) this.loadAssets(id);
+  }
+
+  private async loadAssets(id: string) {
+    this.loadingAssets.add(id);
+    const got = await Promise.all(ASSETS[id].map(url => this.clip(url)));
+    this.loadingAssets.delete(id);
+    // All or nothing: a sound's clips have roles (Ocean's first is its bed).
+    if (got.some(b => !b)) return;
+    this.assets[id] = got as AudioBuffer[];
+    this.mixChanged();
+  }
+
+  /** One decoded clip, shared between sounds that use the same file (Shore and Ocean's bed). */
+  private clip(url: string) {
+    let p = this.clips.get(url);
+    if (!p) {
+      // 32 kHz is plenty for water and voices, and keeps long recordings a third smaller in memory.
+      p = fetch(url)
+        .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
+        .then(d => decode(d, 32000))
+        .then(b => trimEdges(b))
+        .catch(() => { this.clips.delete(url); return null; });
+      this.clips.set(url, p);
+    }
+    return p;
   }
 
   subscribe(fn: Listener) {
@@ -140,7 +166,7 @@ export class Lull {
 
   playState(): PlayState {
     const { playing, active, levels, wave, timer, fade, endsAt } = this.s;
-    return { playing, active, levels, wave, timer, fade, endsAt, buffers: this.buffers, clips: this.clips };
+    return { playing, active, levels, wave, timer, fade, endsAt, buffers: this.buffers, assets: this.assets };
   }
 
   safeEngine() {
@@ -150,6 +176,7 @@ export class Lull {
 
   /** Tell the engine the mix changed. */
   private mixChanged() {
+    this.ensureAssets();
     if (this.s.playing) this.engine().update(this.playState());
     else if (this.s.safeMode) this.safeEngine().update(this.playState());
     this.media();
@@ -161,6 +188,7 @@ export class Lull {
     const anyOn = Object.keys(s.active).some(k => s.active[k] && this.known(k));
     const extra: Partial<State> = anyOn ? {} : { active: { ocean: true }, levels: { ...s.levels, ocean: s.levels.ocean || 0.7 } };
     this.set({ ...extra, playing: true, endsAt: s.timer ? Date.now() + s.timer * 60000 : null });
+    this.ensureAssets();
     this.engine().start(this.playState());
     this.media();
   }

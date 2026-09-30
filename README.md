@@ -8,7 +8,7 @@ A private, invite-only PWA for falling asleep:
 
 Built from the design handoff in `reference/` (the spec is `reference/README.md`).
 
-- **App:** Vite + Preact + TypeScript. All sound is generated on the device with Web Audio. The one exception is Haunt's short clips (see below).
+- **App:** Vite + Preact + TypeScript. Sound is generated on the device with Web Audio, except for recordings: Ocean's waves, Shore, Brook and Haunt's clips (see below).
 - **Accounts:** Supabase Auth with invite codes (the wellofwyrd pattern), plus three Vercel functions in `api/`. Only admins create invites.
 - **Offline-first:** once signed in, the app opens and plays with no network. Sessions are re-checked only when online and **never while sound is playing**.
 
@@ -22,7 +22,7 @@ Built from the design handoff in `reference/` (the spec is `reference/README.md`
 | `api/` | `invite.ts` (validate), `signup.ts` (atomic redeem), `admin.ts` (invites, members, reset links) |
 | `shared/codes.ts` | Invite code format (`XXXX-XXXX`, no 0/O/1/I) |
 | `supabase/migrations/` | Schema, RLS and invite functions |
-| `scripts/` | `bootstrap-admin.ts` (first admin), `brand.ts` (icons, lockups, social card), `haunt.sh` (Haunt's clips) |
+| `scripts/` | `bootstrap-admin.ts` (first admin), `brand.ts` (icons, lockups, social card), `haunt.sh` (Haunt's clips), `freesound.ts` + `water.ts` (field recordings) |
 
 ## Local development
 
@@ -48,6 +48,17 @@ In dev, `window.lull` exposes the core for poking at state.
   - Setting `localStorage['lull.intro'] = 'off'` disables it.
 - **Early explorations:** `design/logo-lab.html`, viewable in dev.
 
+## Water
+
+- **Stream** is generated: thousands of tiny bubbles a second, each a short tone rising in pitch as it decays, over a soft rush of noise. A bank of bubble shapes keeps generation to about 50 ms.
+- **Ocean** is recorded waves breaking at random (0.7–1.3× the wave slider's spacing, with varied size, rate and angle) over the same beach heard from further off.
+- **Shore** and **Brook** are field recordings, looped seamlessly, about 3 minutes each.
+- **Sources:** CC0 recordings from Freesound, credited in `public/sounds/CREDITS.md`.
+  - `npm run sounds:fetch` shortlists candidates into `~/Music/lull-sources/`. It needs `FREESOUND_API_KEY` in `.env.local`.
+  - Listen, put the picks in `scripts/sounds.json`, then run `npm run water`. It cuts the waves at the troughs, crossfades the loops and normalizes loudness.
+- **Memory:** recordings load only when their sound is turned on, decoded at 32 kHz (a 3-minute loop is about 45 MB decoded).
+- **Safe mode:** the loop stretches to the longest active recording, up to 3 minutes, so it plays through before repeating.
+
 ## Haunt
 
 - A spooky sound: a generated wind-and-drone bed, with a scare at random every 20–90 s. Scares are whispers, screams and knocks, each at a random level and stereo position.
@@ -62,7 +73,7 @@ In dev, `window.lull` exposes the core for poking at state.
 ## Lock-screen safe mode
 
 - On by default on iPhone/iPad, and switchable under **Sounds & timer → Playback**.
-- The mix is rendered offline into a seamless loop of about 2 minutes: 32 kHz stereo, around 15 MB, rendering in about 0.5 s on desktop. With Ocean on, the loop is a whole number of waves long.
+- The mix is rendered offline into a seamless loop: 32 kHz stereo, 2 minutes (about 15 MB), or up to 3 minutes when a recording is on. Rendering takes about 0.3 s on desktop.
 - The loop plays through a plain `<audio loop>` element.
 - iOS ignores `audio.volume`, so the timer fade is played as loop-length segments with the gain ramp baked in. They start from the exact loop position and are chained on `ended`.
 - Slider changes re-render, debounced by 800 ms.
