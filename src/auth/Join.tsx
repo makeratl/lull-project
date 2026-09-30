@@ -8,6 +8,7 @@ const MESSAGES: Record<string, string> = {
   not_found: 'That invite code wasn’t found.',
   used: 'That invite has already been used.',
   revoked: 'That invite is no longer valid. Ask for a new one.',
+  expired: 'That invite has expired. Ask for a new one.',
   rate_limited: 'Too many tries. Wait a few minutes and try again.',
   email_taken: 'That email already has an account. Sign in instead.',
   weak_password: 'Choose a longer password (at least 10 characters).',

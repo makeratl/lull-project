@@ -22,7 +22,7 @@ export const POST = handle(async req => {
   const { data: check } = await admin.rpc('check_invitation', { p_code: normalizeCode(code) });
   const inv = (check as { status: string }[] | null)?.[0];
   if (!inv) throw new HttpError(404, 'not_found');
-  if (inv.status !== 'open') throw new HttpError(409, inv.status === 'revoked' ? 'revoked' : 'used');
+  if (inv.status !== 'open') throw new HttpError(409, inv.status === 'revoked' || inv.status === 'expired' ? inv.status : 'used');
 
   const { data: created, error: createErr } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { name } });
   if (createErr || !created.user) {
@@ -37,6 +37,7 @@ export const POST = handle(async req => {
   if (redeemErr) {
     await admin.auth.admin.deleteUser(created.user.id);
     if (/used/.test(redeemErr.message)) throw new HttpError(409, 'used');
+    if (/expired/.test(redeemErr.message)) throw new HttpError(409, 'expired');
     if (/not_found/.test(redeemErr.message)) throw new HttpError(404, 'not_found');
     throw redeemErr;
   }

@@ -8,14 +8,21 @@ export const GET = handle(async req => {
   const admin = supabaseAdmin();
   const [invites, users] = await Promise.all([
     // Revoked invites are dead ends; the screen never shows them.
-    admin.from('invitations').select('code, for_whom, status, created_at, redeemed_at, redeemed_by').neq('status', 'revoked').order('created_at', { ascending: false }).limit(200),
+    admin.from('invitations').select('code, for_whom, status, created_at, redeemed_at, redeemed_by, created_by, expires_at').neq('status', 'revoked').order('created_at', { ascending: false }).limit(200),
     admin.from('profiles').select('*').order('joined_at'),
   ]);
   if (invites.error) throw invites.error;
   if (users.error) throw users.error;
   const names = new Map((users.data as Profile[]).map(u => [u.id, u.name]));
   return ok({
-    invites: invites.data.map(i => ({ ...i, redeemed_by_name: i.redeemed_by ? names.get(i.redeemed_by) ?? null : null })),
+    invites: invites.data
+      // An open invite past its date is as good as gone.
+      .filter(i => !(i.status === 'open' && i.expires_at && i.expires_at < new Date().toISOString()))
+      .map(i => ({
+        ...i,
+        redeemed_by_name: i.redeemed_by ? names.get(i.redeemed_by) ?? null : null,
+        created_by_name: i.created_by ? names.get(i.created_by) ?? null : null,
+      })),
     users: users.data,
   });
 });
@@ -27,6 +34,7 @@ const action = z.discriminatedUnion('action', [
   z.object({ action: z.literal('suspend'), id: z.string().uuid() }),
   z.object({ action: z.literal('reactivate'), id: z.string().uuid() }),
   z.object({ action: z.literal('reset_link'), id: z.string().uuid() }),
+  z.object({ action: z.literal('sharing'), id: z.string().uuid(), on: z.boolean() }),
 ]);
 
 /** Admins act on members only: another admin can't be paused or have a reset link made (nor can you). */
@@ -72,6 +80,13 @@ export const POST = handle(async req => {
       if (banErr) throw banErr;
       await audit(me.id, body.action, body.id);
       return ok({ id: body.id, status: suspend ? 'suspended' : 'active' });
+    }
+    case 'sharing': {
+      await requireMemberTarget(body.id);
+      const { error } = await admin.from('profiles').update({ can_share: body.on }).eq('id', body.id);
+      if (error) throw error;
+      await audit(me.id, body.on ? 'sharing_on' : 'sharing_off', body.id);
+      return ok({ id: body.id, canShare: body.on });
     }
     case 'reset_link': {
       const user = await requireMemberTarget(body.id);

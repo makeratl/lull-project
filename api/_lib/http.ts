@@ -14,6 +14,7 @@ export interface Profile {
   invited_by: string | null;
   joined_at: string;
   suspended_at: string | null;
+  can_share: boolean;
 }
 
 export class HttpError extends Error {

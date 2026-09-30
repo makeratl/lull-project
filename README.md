@@ -60,6 +60,18 @@ In dev, `window.lull` exposes the core for poking at state.
 - **Memory:** recordings load only when their sound is turned on, decoded at 32 kHz (a 3-minute loop is about 45 MB decoded).
 - **Safe mode:** the loop stretches to the longest active recording, up to 3 minutes, so it plays through before repeating.
 
+## Sharing and the family tree
+
+- **Everyone can share:** **Share Lull** in the account menu (tap "Lull") opens straight to an invite's QR code and link. A name is optional for members; the admin page still requires one.
+- **Member invites:** single use, up to 5 waiting at a time, and they expire after 30 days unused. Admin invites have no limit and don't expire. An admin can stop a member sharing (**Stop sharing**).
+- **The tree:** each profile's `invited_by` is whoever made the code they joined with (`shared/tree.ts` builds it).
+  - Members see their own branch: names and join dates only.
+  - The admin page shows the whole tree, and which member shared each waiting invite.
+- **APIs:**
+  - `api/share.ts` (any member): your open invites and your branch; create, name and take back your own invites.
+  - `api/admin.ts`: adds the sharing switch.
+  - The rules (limit, expiry, sharing off) live in the database function `create_invitation`.
+
 ## Practice log (Relax)
 
 - **What's logged:** breathing sessions of a minute or more, finished or stopped early: pattern, start, length, rounds and whether it ran to the end. They're saved to the `relax_sessions` table and are readable, insertable and deletable only by their owner (RLS).

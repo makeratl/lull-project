@@ -2,6 +2,8 @@ import { useEffect, useState } from 'preact/hooks';
 import QRCode from 'qrcode';
 import { formatCode, inviteLink } from '../../shared/codes';
 import { api, ApiError, type Me } from './session';
+import { buildTree, countTree } from '../../shared/tree';
+import { Tree } from '../ui/Tree';
 
 interface Invite {
   code: string;
@@ -11,6 +13,9 @@ interface Invite {
   created_at: string;
   redeemed_at: string | null;
   redeemed_by_name: string | null;
+  created_by: string | null;
+  created_by_name: string | null;
+  expires_at: string | null;
 }
 interface User {
   id: string;
@@ -21,6 +26,7 @@ interface User {
   invited_by: string | null;
   joined_at: string;
   suspended_at: string | null;
+  can_share: boolean;
 }
 
 const date = (s: string) => new Date(s).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
@@ -85,6 +91,7 @@ export function Admin({ me, onBack }: { me: Me; onBack: () => void }) {
   const invites = filter === 'open' ? open : data?.invites ?? [];
   const names = new Map(data?.users.map(u => [u.id, u.name]));
   // Active members first, paused ones after; each in the order they joined.
+  const tree = buildTree(data?.users ?? []);
   const users = [...(data?.users ?? [])].sort((a, b) => Number(a.status === 'suspended') - Number(b.status === 'suspended'));
 
   return (
@@ -153,7 +160,8 @@ export function Admin({ me, onBack }: { me: Me; onBack: () => void }) {
                     <span class="note">
                       {i.status === 'redeemed'
                         ? `Joined${i.redeemed_by_name && i.redeemed_by_name !== i.for_whom ? ` as ${i.redeemed_by_name}` : ''} · ${date(i.redeemed_at!)}`
-                        : `${formatCode(i.code)} · waiting since ${date(i.created_at)}`}
+                        : `${formatCode(i.code)} · waiting since ${date(i.created_at)}${i.expires_at ? ` · until ${date(i.expires_at)}` : ''}`}
+                      {i.created_by && i.created_by !== me.id && i.created_by_name ? ` · shared by ${i.created_by_name}` : ''}
                     </span>
                   </div>
                   {i.status === 'open' && (
@@ -180,7 +188,7 @@ export function Admin({ me, onBack }: { me: Me; onBack: () => void }) {
         {data && (
           <div class="section">
             <span class="label">Members · {data.users.length}</span>
-            <span class="muted">Members use Lull on their own devices; their sounds and settings never leave them. Admins can also invite people, pause a member, and make a password reset link.</span>
+            <span class="muted">Members use Lull on their own devices; their sounds and settings never leave them. Anyone can share Lull (up to 5 invites waiting, each good for 30 days). Admins can also invite without limits, pause a member, stop someone sharing, and make a password reset link.</span>
             {link && (
               <div class="card">
                 <span class="card-note">Reset link for {link.name}. Send it to them directly; it works once.</span>
@@ -197,6 +205,7 @@ export function Admin({ me, onBack }: { me: Me; onBack: () => void }) {
                       {u.id === me.id && <span class="badge">You</span>}
                       {u.role === 'admin' && <span class="badge">Admin</span>}
                       {u.status === 'suspended' && <span class="badge dim">Paused</span>}
+                      {u.role !== 'admin' && !u.can_share && <span class="badge dim">Can’t share</span>}
                     </span>
                     <span class="note">
                       {u.email} · {u.status === 'suspended' && u.suspended_at ? `paused ${date(u.suspended_at)}` : `joined ${date(u.joined_at)}`}
@@ -209,6 +218,9 @@ export function Admin({ me, onBack }: { me: Me; onBack: () => void }) {
                         const r = await post<{ link: string }>({ action: 'reset_link', id: u.id });
                         setLink({ name: u.name, url: r.link });
                       })}>Reset link</button>
+                      <button class="btn-quiet" onClick={() => run(() => post({ action: 'sharing', id: u.id, on: !u.can_share }))}>
+                        {u.can_share ? 'Stop sharing' : 'Allow sharing'}
+                      </button>
                       <button class="btn-quiet" onClick={() => run(() => post({ action: u.status === 'active' ? 'suspend' : 'reactivate', id: u.id }))}>
                         {u.status === 'active' ? 'Pause' : 'Resume'}
                       </button>
@@ -217,6 +229,13 @@ export function Admin({ me, onBack }: { me: Me; onBack: () => void }) {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+        {data && (
+          <div class="section">
+            <span class="label">Family tree · {countTree(tree)}</span>
+            <span class="muted">Who joined through whom. Each member sees only their own branch.</span>
+            <Tree nodes={tree} badge={n => (n.id === me.id ? 'You' : null)} />
           </div>
         )}
       </div>

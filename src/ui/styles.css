@@ -300,7 +300,10 @@ input[type='range'] { width: 100%; margin: 0; height: 30px; accent-color: var(--
 .btn-quiet { height: 40px; padding: 0 16px; border-radius: 20px; background: var(--line-10); font: 400 15px/40px var(--ui); color: var(--t1b); text-align: center; }
 .muted { font: 400 14px/1.4 var(--ui); color: var(--t3); }
 .list { display: flex; flex-direction: column; border-top: 1px solid var(--line-08); }
-.list-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line-08); }
+.list-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 12px; padding: 14px 0; border-bottom: 1px solid var(--line-08); }
+/* Text takes the room it needs; when buttons don't fit beside it, they move to their own line. */
+.list-row .main { flex: 1 1 220px; }
+.list-row .note { overflow-wrap: anywhere; }
 .list-row .main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .list-row .title { font: 500 21px/1.1 var(--display); color: var(--t1b); overflow-wrap: anywhere; }
 .code { font: 500 20px/1 var(--ui); letter-spacing: 0.12em; color: var(--t1c); font-variant-numeric: tabular-nums; }
@@ -430,3 +433,15 @@ input[type='range'] { width: 100%; margin: 0; height: 30px; accent-color: var(--
 @media (prefers-reduced-motion: reduce) { .practice { animation: none; } }
 .pday-dots { display: flex; gap: 3px; height: 4px; }
 .pday-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--t3); }
+
+/* ─── sharing tree ─── */
+.tree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.tree .tree { margin-left: 9px; padding-left: 16px; border-left: 1px solid var(--line-12); }
+.tree li { position: relative; }
+.tree .tree > li::before { content: ''; position: absolute; left: -16px; top: 22px; width: 11px; border-top: 1px solid var(--line-12); }
+.tree-node { display: flex; flex-direction: column; gap: 2px; padding: 10px 0; }
+.tree-name { font: 500 20px/1.1 var(--display); color: var(--t1b); }
+.share .qr { width: 200px; height: 200px; }
+.share-name { display: flex; gap: 8px; align-items: center; }
+.share-name input { all: unset; box-sizing: border-box; flex: 1; min-width: 0; height: 40px; padding: 0 14px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line-12); font: 400 15px/40px var(--ui); color: var(--t1c); }
+.share-name input:focus { border-color: var(--line-55); }
