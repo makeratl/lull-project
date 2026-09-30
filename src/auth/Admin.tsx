@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'preact/hooks';
 import QRCode from 'qrcode';
 import { formatCode, inviteLink } from '../../shared/codes';
-import { api, ApiError } from './session';
+import { api, ApiError, type Me } from './session';
 
 interface Invite {
   code: string;
   for_whom: string | null;
-  status: 'open' | 'redeemed' | 'revoked';
+  /** Revoked invites aren't sent: they're dead ends. */
+  status: 'open' | 'redeemed';
   created_at: string;
   redeemed_at: string | null;
   redeemed_by_name: string | null;
@@ -17,7 +18,9 @@ interface User {
   email: string;
   role: 'member' | 'admin';
   status: 'active' | 'suspended';
+  invited_by: string | null;
   joined_at: string;
+  suspended_at: string | null;
 }
 
 const date = (s: string) => new Date(s).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
@@ -31,10 +34,17 @@ function Qr({ text }: { text: string }) {
   return <div class="qr" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
-export function Admin({ onBack }: { onBack: () => void }) {
+/**
+ * Admin: invite people and look after members.
+ * Invites show the open ones by default; joined ones are one tap away, revoked ones never.
+ */
+export function Admin({ me, onBack }: { me: Me; onBack: () => void }) {
   const [data, setData] = useState<{ invites: Invite[]; users: User[] } | null>(null);
   const [forWhom, setForWhom] = useState('');
-  const [fresh, setFresh] = useState<string | null>(null);
+  /** The invite whose QR and link are shown: a new one, or an open one reopened with Share. */
+  const [shown, setShown] = useState<{ code: string; forWhom: string } | null>(null);
+  const [filter, setFilter] = useState<'open' | 'all'>('open');
+  const [confirming, setConfirming] = useState('');
   const [link, setLink] = useState<{ name: string; url: string } | null>(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState('');
@@ -69,7 +79,13 @@ export function Admin({ onBack }: { onBack: () => void }) {
     } else copy(url, 'link');
   };
 
-  const url = fresh ? inviteLink(location.origin, fresh) : '';
+  const name = forWhom.trim();
+  const url = shown ? inviteLink(location.origin, shown.code) : '';
+  const open = data?.invites.filter(i => i.status === 'open') ?? [];
+  const invites = filter === 'open' ? open : data?.invites ?? [];
+  const names = new Map(data?.users.map(u => [u.id, u.name]));
+  // Active members first, paused ones after; each in the order they joined.
+  const users = [...(data?.users ?? [])].sort((a, b) => Number(a.status === 'suspended') - Number(b.status === 'suspended'));
 
   return (
     <main class="page">
@@ -78,55 +94,83 @@ export function Admin({ onBack }: { onBack: () => void }) {
           <span class="brand">Lull</span>
           <button class="btn-quiet" onClick={onBack}>Done</button>
         </div>
-        <h1>Invites</h1>
+        <h1>People</h1>
         {error && <span class="error" role="alert">{error}</span>}
 
         <form
           class="form"
           onSubmit={e => {
             e.preventDefault();
+            if (!name) return;
             run(async () => {
-              const r = await post<{ invite: { code: string } }>({ action: 'invite', forWhom });
-              setFresh(r.invite.code);
+              const r = await post<{ invite: { code: string } }>({ action: 'invite', forWhom: name });
+              setShown({ code: r.invite.code, forWhom: name });
               setForWhom('');
+              setFilter('open');
             });
           }}
         >
           <label class="field">
-            <span class="label">Who is it for? (only you see this)</span>
-            <input value={forWhom} maxLength={120} onInput={e => setForWhom((e.target as HTMLInputElement).value)} />
+            <span class="label">Who is it for?</span>
+            <input value={forWhom} maxLength={120} required placeholder="Their name" onInput={e => setForWhom((e.target as HTMLInputElement).value)} />
+            <span class="muted">Only admins see this. It’s how you’ll tell your invites apart.</span>
           </label>
-          <button class="btn-primary" type="submit">Create invite</button>
+          <button class="btn-primary" type="submit" disabled={!name}>Create invite</button>
         </form>
 
-        {fresh && (
-          <div class="card" style={{ gap: '16px' }}>
+        {shown && (
+          <div class="card invite-card">
+            <div class="row-between">
+              <span class="title">For {shown.forWhom}</span>
+              <button class="x" aria-label="Close" onClick={() => setShown(null)}>×</button>
+            </div>
             <Qr text={url} />
-            <span class="code" style={{ alignSelf: 'center' }}>{formatCode(fresh)}</span>
+            <span class="code" style={{ alignSelf: 'center' }}>{formatCode(shown.code)}</span>
             <div class="actions" style={{ justifyContent: 'center' }}>
               <button class="btn-quiet" onClick={() => share(url)}>Share link</button>
               <button class="btn-quiet" onClick={() => copy(url, 'link')}>{copied === 'link' ? 'Copied' : 'Copy link'}</button>
-              <button class="btn-quiet" onClick={() => copy(formatCode(fresh), 'code')}>{copied === 'code' ? 'Copied' : 'Copy code'}</button>
+              <button class="btn-quiet" onClick={() => copy(formatCode(shown.code), 'code')}>{copied === 'code' ? 'Copied' : 'Copy code'}</button>
             </div>
-            <span class="muted" style={{ textAlign: 'center' }}>Single use. It doesn’t expire; revoke it below if it isn’t needed.</span>
+            <span class="muted" style={{ textAlign: 'center' }}>Works once. It doesn’t expire; revoke it below if it isn’t needed.</span>
           </div>
         )}
 
         {data && (
           <div class="section">
-            <span class="label">All invites</span>
+            <div class="row-between">
+              <span class="label">Invites</span>
+              <div class="seg" role="group" aria-label="Show invites">
+                <button class={filter === 'open' ? 'on' : ''} aria-pressed={filter === 'open'} onClick={() => setFilter('open')}>Waiting · {open.length}</button>
+                <button class={filter === 'all' ? 'on' : ''} aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>All · {data.invites.length}</button>
+              </div>
+            </div>
             <div class="list">
-              {data.invites.length === 0 && <span class="muted" style={{ padding: '14px 0' }}>None yet.</span>}
-              {data.invites.map(i => (
+              {invites.length === 0 && <span class="muted" style={{ padding: '14px 0' }}>{filter === 'open' ? 'No one is waiting on an invite.' : 'No invites yet.'}</span>}
+              {invites.map(i => (
                 <div key={i.code} class="list-row">
                   <div class="main">
-                    <span class="code" style={{ fontSize: '16px' }}>{formatCode(i.code)}</span>
+                    <span class="title">{i.for_whom || 'Unnamed invite'}</span>
                     <span class="note">
-                      {i.for_whom ? `${i.for_whom} · ` : ''}
-                      {i.status === 'redeemed' ? `Joined${i.redeemed_by_name ? ` as ${i.redeemed_by_name}` : ''}, ${date(i.redeemed_at!)}` : i.status === 'revoked' ? 'Revoked' : `Waiting since ${date(i.created_at)}`}
+                      {i.status === 'redeemed'
+                        ? `Joined${i.redeemed_by_name && i.redeemed_by_name !== i.for_whom ? ` as ${i.redeemed_by_name}` : ''} · ${date(i.redeemed_at!)}`
+                        : `${formatCode(i.code)} · waiting since ${date(i.created_at)}`}
                     </span>
                   </div>
-                  {i.status === 'open' && <button class="btn-quiet" onClick={() => run(() => post({ action: 'revoke', code: i.code }))}>Revoke</button>}
+                  {i.status === 'open' && (
+                    <div class="actions" style={{ flex: 'none', justifyContent: 'flex-end' }}>
+                      {confirming === i.code ? (
+                        <>
+                          <button class="btn-quiet" onClick={() => setConfirming('')}>Keep</button>
+                          <button class="btn-quiet danger" onClick={() => { setConfirming(''); if (shown?.code === i.code) setShown(null); run(() => post({ action: 'revoke', code: i.code })); }}>Revoke</button>
+                        </>
+                      ) : (
+                        <>
+                          <button class="btn-quiet" onClick={() => { setShown({ code: i.code, forWhom: i.for_whom || 'someone' }); scrollTo({ top: 0, behavior: 'smooth' }); }}>Share</button>
+                          <button class="btn-quiet" onClick={() => setConfirming(i.code)}>Revoke…</button>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -135,7 +179,8 @@ export function Admin({ onBack }: { onBack: () => void }) {
 
         {data && (
           <div class="section">
-            <span class="label">Members</span>
+            <span class="label">Members · {data.users.length}</span>
+            <span class="muted">Members use Lull on their own devices; their sounds and settings never leave them. Admins can also invite people, pause a member, and make a password reset link.</span>
             {link && (
               <div class="card">
                 <span class="card-note">Reset link for {link.name}. Send it to them directly; it works once.</span>
@@ -144,18 +189,26 @@ export function Admin({ onBack }: { onBack: () => void }) {
               </div>
             )}
             <div class="list">
-              {data.users.map(u => (
-                <div key={u.id} class="list-row">
+              {users.map(u => (
+                <div key={u.id} class={`list-row${u.status === 'suspended' ? ' paused' : ''}`}>
                   <div class="main">
-                    <span class="title">{u.name}{u.role === 'admin' ? ' · admin' : ''}</span>
-                    <span class="note">{u.email} · {u.status === 'suspended' ? 'Paused' : `Joined ${date(u.joined_at)}`}</span>
+                    <span class="title">
+                      {u.name}
+                      {u.id === me.id && <span class="badge">You</span>}
+                      {u.role === 'admin' && <span class="badge">Admin</span>}
+                      {u.status === 'suspended' && <span class="badge dim">Paused</span>}
+                    </span>
+                    <span class="note">
+                      {u.email} · {u.status === 'suspended' && u.suspended_at ? `paused ${date(u.suspended_at)}` : `joined ${date(u.joined_at)}`}
+                      {u.invited_by && names.get(u.invited_by) && u.invited_by !== me.id ? ` · invited by ${names.get(u.invited_by)}` : ''}
+                    </span>
                   </div>
                   {u.role !== 'admin' && (
                     <div class="actions" style={{ flex: 'none', justifyContent: 'flex-end' }}>
                       <button class="btn-quiet" onClick={() => run(async () => {
                         const r = await post<{ link: string }>({ action: 'reset_link', id: u.id });
                         setLink({ name: u.name, url: r.link });
-                      })}>Reset</button>
+                      })}>Reset link</button>
                       <button class="btn-quiet" onClick={() => run(() => post({ action: u.status === 'active' ? 'suspend' : 'reactivate', id: u.id }))}>
                         {u.status === 'active' ? 'Pause' : 'Resume'}
                       </button>

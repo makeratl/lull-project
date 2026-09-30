@@ -58,7 +58,8 @@ button:focus-visible, input:focus-visible, label:focus-within { outline: 1px sol
   padding: calc(18px + var(--st)) 22px 0;
   display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
 }
-.brand { font: italic 500 24px/1 var(--display); color: var(--moon); }
+.brand { justify-self: start; min-height: 44px; display: flex; align-items: center; font: italic 500 24px/1 var(--display); color: var(--moon); }
+button.brand:hover { color: #fff; }
 .tabs { display: flex; gap: 22px; }
 .tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 44px; }
 .tab span:first-child { font: 500 20px/1 var(--display); color: var(--t3c); transition: color 0.3s; }
@@ -217,7 +218,6 @@ input[type='range'] { width: 100%; margin: 0; height: 30px; accent-color: var(--
 .fold.open .fold-body { grid-template-rows: 1fr; }
 .fold-inner { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 12px; }
 .fold-inner > :last-child { margin-bottom: 18px; }
-.fold-inner > .account { margin-top: 8px; }
 
 /* Tonight: only the sounds that are on, each with its level. */
 .mixer { display: flex; flex-direction: column; gap: 10px; }
@@ -351,5 +351,34 @@ input[type='range'] { width: 100%; margin: 0; height: 30px; accent-color: var(--
 .auth-mark svg { width: 100%; height: 100%; display: block; }
 
 @media (prefers-reduced-motion: reduce) {
-  .water.on span, .sheet.open .sheet-body > *, .mixer-row, .fold-body, .fold-chev, .page-inner > *, .shell.reveal *, .dim, .halo { animation: none !important; }
+  .water.on span, .sheet.open .sheet-body > *, .menu, .menu-backdrop, .mixer-row, .fold-body, .fold-chev, .page-inner > *, .shell.reveal *, .dim, .halo { animation: none !important; }
 }
+
+/* ─── admin ─── */
+.seg { display: flex; padding: 3px; gap: 2px; border-radius: 18px; background: var(--card); border: 1px solid var(--line-08); }
+.seg button { height: 30px; padding: 0 12px; border-radius: 15px; font: 400 13px/30px var(--ui); color: var(--t3); font-variant-numeric: tabular-nums; transition: background 0.3s, color 0.3s; }
+.seg button.on { background: var(--line-12); color: var(--t1c); }
+.badge { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--line-20); font: 500 11px/1.4 var(--ui); letter-spacing: 0.08em; text-transform: uppercase; color: var(--t2c); vertical-align: 3px; }
+.badge.dim { color: var(--t3); border-color: var(--line-12); }
+.list-row.paused .title { color: var(--t3b); }
+.invite-card { gap: 16px; }
+.btn-quiet.danger { background: rgba(227, 184, 184, 0.12); color: #e3b8b8; }
+
+/* ─── account menu (from the wordmark) ─── */
+.menu-backdrop { position: absolute; inset: 0; z-index: 30; background: rgba(5, 6, 10, 0.5); animation: lullFadeIn 0.3s ease both; }
+.menu {
+  position: absolute; z-index: 31; top: calc(66px + var(--st)); left: 16px; width: min(320px, calc(100% - 32px)); box-sizing: border-box;
+  max-height: calc(100% - 90px - var(--st)); overflow-y: auto;
+  padding: 18px 18px 10px; border-radius: 22px; background: var(--sheet); border: 1px solid var(--line-10);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column;
+  transform-origin: 30px 0; animation: lullMenu 0.35s var(--ease) both;
+}
+@keyframes lullMenu { from { opacity: 0; transform: translateY(-6px) scale(0.97); } to { opacity: 1; transform: none; } }
+.menu-who { display: flex; flex-direction: column; gap: 3px; padding-bottom: 14px; border-bottom: 1px solid var(--line-08); }
+.menu-name { font: 500 26px/1.1 var(--display); color: var(--t1); overflow-wrap: anywhere; }
+.menu-role { align-self: flex-start; margin: 6px 0 0; }
+.menu-item { display: flex; align-items: center; justify-content: space-between; min-height: 52px; border-bottom: 1px solid var(--line-08); font: 500 20px/1.1 var(--display); color: var(--t1b); }
+.menu-item.quiet { border-bottom: none; font: 400 15px/1 var(--ui); color: var(--t2c); }
+.menu-chev { width: 7px; height: 7px; margin-right: 4px; border-right: 1.5px solid var(--t3); border-top: 1.5px solid var(--t3); transform: rotate(45deg); }
+.menu-block { padding: 6px 0; border-bottom: 1px solid var(--line-08); display: flex; flex-direction: column; gap: 10px; }
+.menu-block .form { padding-bottom: 8px; }

@@ -82,7 +82,7 @@ export function App() {
   if (path === '/join') return me ? <Redirect to="/" nav={nav} /> : <Join onDone={done} />;
   if (path === '/reset') return <Reset onDone={done} />;
   if (!me) return <SignIn onDone={done} />;
-  if (path === '/admin') return me.role === 'admin' ? <Admin onBack={() => nav('/')} /> : <Redirect to="/" nav={nav} />;
+  if (path === '/admin') return me.role === 'admin' ? <Admin me={me} onBack={() => nav('/')} /> : <Redirect to="/" nav={nav} />;
   return <Shell core={getCore()} me={me} onSignOut={leave} onAdmin={() => nav('/admin')} />;
 }
 

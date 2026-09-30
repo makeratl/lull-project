@@ -5,6 +5,7 @@ import { Sleep } from './Sleep';
 import { Relax } from './Relax';
 import { SleepSheet } from './SleepSheet';
 import { RelaxSheet } from './RelaxSheet';
+import { AccountMenu } from './AccountMenu';
 import type { Me } from '../auth/session';
 import { Opening, openingMode } from './opening/Opening';
 
@@ -20,6 +21,7 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
   const [opening] = useState(openingMode);
   const [stage, setStage] = useState<'intro' | 'reveal' | 'on'>(opening ? 'intro' : 'on');
   const [sheet, setSheet] = useState(false);
+  const [menu, setMenu] = useState(false);
   const [drag, setDrag] = useState({ x: 0, y: 0, sheet: 0, on: false });
   const g = useRef<{ x: number; y: number; axis: 'x' | 'y' | null } | null>(null);
   const sg = useRef<{ y: number } | null>(null);
@@ -46,7 +48,8 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
       if (e.key === 'ArrowRight') setMode(modeRef.current + 1);
       else if (e.key === 'ArrowLeft') setMode(modeRef.current - 1);
       else if (e.key === 'ArrowUp') setSheet(true);
-      else if (e.key === 'ArrowDown' || e.key === 'Escape') setSheet(false);
+      else if (e.key === 'ArrowDown') setSheet(false);
+      else if (e.key === 'Escape') { setSheet(false); setMenu(false); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -54,7 +57,7 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
 
   const onDown = (e: PointerEvent) => {
     core.touch();
-    if (sheet || core.s.dim) return;
+    if (sheet || menu || core.s.dim) return;
     if ((e.target as HTMLElement).closest?.('input,label')) return;
     g.current = { x: e.clientX, y: e.clientY, axis: null };
   };
@@ -117,7 +120,7 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
       class={`shell${stage === 'intro' ? ' intro' : opening ? ' reveal' : ''}${stage !== 'on' ? ' opening-on' : ''}`}
       onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
       <div class="topbar">
-        <span class="brand">Lull</span>
+        <button class="brand" aria-haspopup="dialog" aria-expanded={menu} aria-label="Lull: account menu" onClick={() => setMenu(m => !m)}>Lull</button>
         <div class="tabs">
           {MODES.map((label, i) => (
             <button key={label} class={`tab${i === mode ? ' on' : ''}`} onClick={() => setMode(i)}>
@@ -161,12 +164,14 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
         </div>
         <div class="sheet-body">
           {mode === 0 ? (
-            <SleepSheet v={v} core={core} me={me} onSignOut={onSignOut} onAdmin={onAdmin} />
+            <SleepSheet v={v} core={core} />
           ) : (
             <RelaxSheet v={v} core={core} />
           )}
         </div>
       </div>
+
+      {menu && <AccountMenu me={me} onClose={() => setMenu(false)} onSignOut={onSignOut} onAdmin={onAdmin} />}
 
       {opening && stage !== 'on' && (
         <Opening mode={opening} onReveal={() => setStage('reveal')} onDone={() => setStage('on')} />

@@ -7,7 +7,8 @@ export const GET = handle(async req => {
   await requireAdmin(req);
   const admin = supabaseAdmin();
   const [invites, users] = await Promise.all([
-    admin.from('invitations').select('code, for_whom, status, created_at, redeemed_at, redeemed_by').order('created_at', { ascending: false }).limit(200),
+    // Revoked invites are dead ends; the screen never shows them.
+    admin.from('invitations').select('code, for_whom, status, created_at, redeemed_at, redeemed_by').neq('status', 'revoked').order('created_at', { ascending: false }).limit(200),
     admin.from('profiles').select('*').order('joined_at'),
   ]);
   if (invites.error) throw invites.error;
@@ -20,12 +21,21 @@ export const GET = handle(async req => {
 });
 
 const action = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('invite'), forWhom: z.string().trim().max(120).optional() }),
+  // Every invite is for someone: the name is how the admin tells them apart later.
+  z.object({ action: z.literal('invite'), forWhom: z.string().trim().min(1).max(120) }),
   z.object({ action: z.literal('revoke'), code: z.string().max(20) }),
   z.object({ action: z.literal('suspend'), id: z.string().uuid() }),
   z.object({ action: z.literal('reactivate'), id: z.string().uuid() }),
   z.object({ action: z.literal('reset_link'), id: z.string().uuid() }),
 ]);
+
+/** Admins act on members only: another admin can't be paused or have a reset link made (nor can you). */
+const requireMemberTarget = async (id: string) => {
+  const { data, error } = await supabaseAdmin().from('profiles').select('email, role').eq('id', id).single<{ email: string; role: string }>();
+  if (error || !data) throw new HttpError(404, 'not_found');
+  if (data.role === 'admin') throw new HttpError(403, 'target_admin');
+  return data;
+};
 
 export const POST = handle(async req => {
   const { profile: me } = await requireAdmin(req);
@@ -34,7 +44,7 @@ export const POST = handle(async req => {
 
   switch (body.action) {
     case 'invite': {
-      const { data, error } = await admin.rpc('create_invitation', { p_by: me.id, p_for: body.forWhom ?? null });
+      const { data, error } = await admin.rpc('create_invitation', { p_by: me.id, p_for: body.forWhom });
       if (error) throw error;
       await audit(me.id, 'invite_create', null, { code: (data as { code: string }).code });
       return ok({ invite: data }, 201);
@@ -50,6 +60,7 @@ export const POST = handle(async req => {
     case 'suspend':
     case 'reactivate': {
       if (body.id === me.id) throw new HttpError(400, 'self');
+      await requireMemberTarget(body.id);
       const suspend = body.action === 'suspend';
       const { error } = await admin
         .from('profiles')
@@ -63,8 +74,7 @@ export const POST = handle(async req => {
       return ok({ id: body.id, status: suspend ? 'suspended' : 'active' });
     }
     case 'reset_link': {
-      const { data: user, error } = await admin.from('profiles').select('email').eq('id', body.id).single<{ email: string }>();
-      if (error || !user) throw new HttpError(404, 'not_found');
+      const user = await requireMemberTarget(body.id);
       const { data, error: linkErr } = await admin.auth.admin.generateLink({ type: 'recovery', email: user.email });
       if (linkErr) throw linkErr;
       await audit(me.id, 'reset_link', body.id);

@@ -1,7 +1,5 @@
 import type { Lull } from '../core/lull';
 import type { ViewModel } from '../core/viewModel';
-import type { Me } from '../auth/session';
-import { ChangePassword } from '../auth/ChangePassword';
 import { Fold } from './Fold';
 
 const num = (e: Event) => Number((e.target as HTMLInputElement).value);
@@ -11,9 +9,10 @@ type Sound = ViewModel['sounds'][number];
 
 /**
  * The Sleep sheet, a mixer over a library:
- * timer (folded) · Tonight (only what's on, with levels) · Mixes · the library by group · settings (folded).
+ * timer (folded) · Tonight (only what's on, with levels) · Mixes · the library by group · playback (folded).
+ * The account lives in its own menu, opened from the wordmark.
  */
-export function SleepSheet({ v, core, me, onSignOut, onAdmin }: { v: ViewModel; core: Lull; me: Me; onSignOut: () => void; onAdmin: () => void }) {
+export function SleepSheet({ v, core }: { v: ViewModel; core: Lull }) {
   return (
     <>
       <Fold id="timer" title="Sleep timer" summary={v.timerSummary}>
@@ -102,7 +101,7 @@ export function SleepSheet({ v, core, me, onSignOut, onAdmin }: { v: ViewModel; 
         ))}
       </div>
 
-      <Fold id="settings" title="Playback & account">
+      <Fold id="settings" title="Playback">
         <button class="toggle-row" role="switch" aria-checked={v.safeMode} onClick={() => core.setSafeMode(!v.safeMode)}>
           <span class="mix-text">
             <span class="mix-name">Lock-screen safe mode</span>
@@ -115,15 +114,6 @@ export function SleepSheet({ v, core, me, onSignOut, onAdmin }: { v: ViewModel; 
             If sound stops overnight, set Chrome’s battery usage to “Unrestricted” in Android settings.
           </span>
         )}
-        <div class="row-between account">
-          <span class="mix-text">
-            <span class="mix-name">{me.name}</span>
-            <span class="note">{me.email}</span>
-          </span>
-          <button class="btn-quiet" onClick={onSignOut}>Sign out</button>
-        </div>
-        <ChangePassword email={me.email} />
-        {me.role === 'admin' && <button class="link" onClick={onAdmin}>Invite &amp; admin</button>}
       </Fold>
     </>
   );

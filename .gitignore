@@ -8,3 +8,6 @@ dev-dist
 supabase/.temp
 supabase/.branches
 *.log
+
+# TypeScript incremental build state (changes on every type check)
+*.tsbuildinfo
