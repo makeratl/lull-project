@@ -69,7 +69,9 @@ describe('format', () => {
 describe('state', () => {
   it('defaults', () => {
     const s = loadSaved(null, false);
-    expect(s).toMatchObject({ levels: { ocean: 0.75 }, active: { ocean: true }, timer: 60, wave: 11, fade: 10, relax: { p: '478', min: 5 }, safeMode: false });
+    expect(s).toMatchObject({ levels: { ocean: 0.75 }, active: { ocean: true }, timer: 60, wave: 11, fade: 10, relax: { p: '478', min: 5, goal: 15 }, safeMode: false });
+    // Settings saved before the goal existed pick up the default.
+    expect(loadSaved('{"relax":{"p":"box","min":10}}', false).relax).toEqual({ p: 'box', min: 10, goal: 15 });
     expect(s.mixes.map(m => m.name)).toEqual(['Just the ocean', 'Ocean & brown', 'Rain on the roof']);
     expect(loadSaved(null, true).safeMode).toBe(true);
     expect(loadSaved('{"timer":0}', false).timer).toBe(0);
@@ -241,6 +243,16 @@ describe('breathing', () => {
     c.startBreath();
     c.closeBreath(false);
     expect(gongs.filter(g => g === 'ring').length).toBe(5);
+  });
+
+  it('changing the daily goal keeps a running session going', () => {
+    const { c } = track(makeCore());
+    c.startBreath();
+    const b = c.s.breath;
+    c.setGoal(5);
+    expect(c.s.relax.goal).toBe(5);
+    expect(c.s.breath).toBe(b);
+    expect(viewModel(c).practice.goals.find(g => g.on)!.value).toBe(5);
   });
 
   it('open sessions', () => {

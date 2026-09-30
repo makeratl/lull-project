@@ -23,6 +23,15 @@ export function RelaxSheet({ v, core, openPractice }: { v: ViewModel; core: Lull
         </div>
       </div>
       <div class="section">
+        <span class="label">Daily goal</span>
+        <div class="chips">
+          {v.practice.goals.map(g => (
+            <button key={g.value} class={`chip${g.on ? ' on' : ''}`} onClick={() => core.setGoal(g.value)}>{g.label}</button>
+          ))}
+        </div>
+        <span class="note">The moon on your calendar fills as you reach it. Five minutes a day is a well-studied amount; fifteen fits a morning, afternoon and evening five.</span>
+      </div>
+      <div class="section">
         <span class="label">Session length</span>
         <div class="chips">
           {v.relaxLengths.map(l => (

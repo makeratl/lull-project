@@ -4,8 +4,6 @@ import type { Lull } from '../core/lull';
 import { byDay, dayKey, monthGrid, streaks, type Session } from '../core/practice';
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-/** Minutes for a full moon; fewer show as a crescent. */
-const FULL = 15;
 
 const monthName = (y: number, m: number) => new Date(y, m, 1).toLocaleDateString([], { month: 'long', year: 'numeric' });
 const dayTitle = (key: string) => {
@@ -16,17 +14,17 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'nume
 const mins = (seconds: number) => Math.max(1, Math.round(seconds / 60));
 const rounds = (n: number) => `${n} round${n === 1 ? '' : 's'}`;
 
-/** A moon that waxes with the night's minutes: a sliver for a short session, full at 15 minutes or more. */
-function Moon({ minutes }: { minutes: number }) {
+/** A moon that waxes with the day's minutes toward the daily goal: a sliver for a short session, full at the goal. */
+function Moon({ minutes, goal }: { minutes: number; goal: number }) {
   if (!minutes) return <span class="pday-moon empty" />;
-  const f = Math.min(1, minutes / FULL);
+  const f = Math.min(1, minutes / goal);
   // An inset shadow from the right hides the unlit part, the classic CSS moon phase.
   return <span class="pday-moon" style={{ '--shade': `${(1 - f) * 0.9}` } as Record<string, string>} />;
 }
 
 /** Your practice: streaks and a month of breathing, from the Relax screen. */
 export function Practice({ core, onClose }: { core: Lull; onClose: () => void }) {
-  const log = core.practice;
+  const log = core.practice, goal = core.s.relax.goal;
   const sessions: Session[] = log?.sessions ?? [];
   const today = dayKey(Date.now());
   const [ty, tm] = today.split('-').map(Number);
@@ -54,7 +52,7 @@ export function Practice({ core, onClose }: { core: Lull; onClose: () => void })
         </div>
 
         <div class="pstats">
-          <div class="pstat"><span class="pstat-n">{current}</span><span class="note">{current === 1 ? 'night' : 'nights'} in a row</span></div>
+          <div class="pstat"><span class="pstat-n">{current}</span><span class="note">{current === 1 ? 'day' : 'days'} in a row</span></div>
           <div class="pstat"><span class="pstat-n">{longest}</span><span class="note">longest streak</span></div>
           <div class="pstat"><span class="pstat-n">{Math.round(monthMin)}</span><span class="note">min in {new Date(month.y, month.m, 1).toLocaleDateString([], { month: 'short' })}</span></div>
         </div>
@@ -79,7 +77,9 @@ export function Practice({ core, onClose }: { core: Lull; onClose: () => void })
                   onClick={() => setPicked(k)}
                 >
                   <span class="pday-n">{Number(k.slice(8))}</span>
-                  <Moon minutes={d?.minutes ?? 0} />
+                  <Moon minutes={d?.minutes ?? 0} goal={goal} />
+                  {/* A dot per session (up to three): practice spread through the day shows at a glance. */}
+                  <span class="pday-dots" aria-hidden="true">{Array.from({ length: Math.min(3, d?.count ?? 0) }, (_, j) => <i key={j} />)}</span>
                 </button>
               );
             })}
@@ -88,7 +88,10 @@ export function Practice({ core, onClose }: { core: Lull; onClose: () => void })
         </div>
 
         <div class="pday-detail">
-          <span class="label">{picked === today ? 'Tonight' : dayTitle(picked)}</span>
+          <div class="row-between">
+            <span class="label">{picked === today ? 'Today' : dayTitle(picked)}</span>
+            {day && <span class="note">{Math.round(day.minutes)} of {goal} min{day.minutes >= goal ? ' · goal met' : ''}</span>}
+          </div>
           {day ? (
             <div class="list">
               {day.sessions.map(s => (
@@ -102,12 +105,12 @@ export function Practice({ core, onClose }: { core: Lull; onClose: () => void })
               ))}
             </div>
           ) : (
-            <span class="note">{picked === today ? 'Nothing yet tonight. A minute or more of breathing counts.' : 'No breathing this night.'}</span>
+            <span class="note">{picked === today ? 'Nothing yet today. A minute or more of breathing counts.' : 'No breathing this day.'}</span>
           )}
         </div>
 
         <span class="muted pfoot">
-          Your breathing sessions (pattern, time and length) are saved to your account, so they follow you to other devices. Your sounds and mixes never leave this device. A night runs until 4 a.m.
+          Your breathing sessions (pattern, time and length) are saved to your account, so they follow you to other devices. Your sounds and mixes never leave this device.
         </span>
       </div>
     </>

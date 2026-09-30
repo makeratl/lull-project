@@ -64,8 +64,9 @@ In dev, `window.lull` exposes the core for poking at state.
 
 - **What's logged:** breathing sessions of a minute or more, finished or stopped early: pattern, start, length, rounds and whether it ran to the end. They're saved to the `relax_sessions` table and are readable, insertable and deletable only by their owner (RLS).
 - **Offline:** logged on the device first (`src/core/practice.ts`, `lull.practice.<userId>`), then uploaded when online. Ids are made on the device, so a retried upload is stored once.
-- **Nights:** a night runs until 4 a.m., so a 12:40 a.m. session counts for the evening before. Streaks count consecutive nights; tonight's streak isn't broken until tonight is over.
-- **Where:** a streak line under the Relax pills opens "Your practice": the streaks, a month calendar where each night's moon waxes with minutes (full at 15), and that night's sessions, each removable.
+- **Days:** plain calendar days (midnight). Streaks count consecutive days with any practice; a streak isn't broken until today is over.
+- **Daily goal:** 5, 10 or 15 minutes (default 15, set in the Relax sheet). Five a day is a well-studied amount (Balban et al., Cell Reports Medicine, 2023); fifteen fits a morning, afternoon and evening five. It doesn't restart a running session.
+- **Where:** a streak line under the Relax pills opens "Your practice": the streaks, a month calendar where each day's moon waxes toward the goal (full when it's met) with a dot per session (up to three), and that day's sessions, each removable.
 - **Deploying:** run `supabase db push` on the hosted project before the app update that needs the table goes out.
 
 ## Haunt

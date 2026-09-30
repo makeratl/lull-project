@@ -25,13 +25,13 @@ const session = (started_at: string, seconds = 300): Omit<Session, 'id'> => ({ p
 let n = 0;
 const ids = () => `id-${++n}`;
 
-describe('nights', () => {
-  it('a night runs until 4 a.m. local time', () => {
-    expect(dayKey(new Date(2026, 8, 29, 23, 30))).toBe('2026-09-29');
-    expect(dayKey(new Date(2026, 8, 30, 0, 40))).toBe('2026-09-29');
-    expect(dayKey(new Date(2026, 8, 30, 3, 59))).toBe('2026-09-29');
-    expect(dayKey(new Date(2026, 8, 30, 4, 0))).toBe('2026-09-30');
-    expect(dayKey(new Date(2026, 8, 30, 0, 40), 0)).toBe('2026-09-30');
+describe('days', () => {
+  it('days are calendar days in local time (a later cutoff is still possible)', () => {
+    expect(dayKey(new Date(2026, 8, 29, 23, 59))).toBe('2026-09-29');
+    expect(dayKey(new Date(2026, 8, 30, 0, 0))).toBe('2026-09-30');
+    expect(dayKey(new Date(2026, 8, 30, 0, 40))).toBe('2026-09-30');
+    expect(dayKey(new Date(2026, 8, 30, 0, 40), 4)).toBe('2026-09-29');
+    expect(dayKey(new Date(2026, 8, 30, 4, 0), 4)).toBe('2026-09-30');
   });
 
   it('day arithmetic crosses months, years and daylight-saving changes', () => {
@@ -43,7 +43,7 @@ describe('nights', () => {
     expect(addDays('2027-03-14', -1)).toBe('2027-03-13');
   });
 
-  it('streaks: tonight counts, an empty tonight keeps last night going, a gap breaks it', () => {
+  it('streaks: today counts, an empty today keeps yesterday going, a gap breaks it', () => {
     const d = ['2026-09-20', '2026-09-21', '2026-09-22', '2026-09-25', '2026-09-26', '2026-09-27'];
     expect(streaks(d, '2026-09-27')).toEqual({ current: 3, longest: 3 });
     expect(streaks(d, '2026-09-28')).toEqual({ current: 3, longest: 3 });
@@ -62,13 +62,16 @@ describe('nights', () => {
     expect(monthGrid(2028, 1).flat().filter(Boolean)).toHaveLength(29);
   });
 
-  it('byDay groups by night and adds up minutes', () => {
+  it('byDay groups by day and adds up minutes: a morning, afternoon and evening five make fifteen', () => {
     const days = byDay([
-      { id: 'a', ...session(new Date(2026, 8, 29, 22).toISOString(), 300) },
-      { id: 'b', ...session(new Date(2026, 8, 30, 1).toISOString(), 120) },
+      { id: 'a', ...session(new Date(2026, 8, 29, 7).toISOString(), 300) },
+      { id: 'b', ...session(new Date(2026, 8, 29, 13).toISOString(), 300) },
+      { id: 'c', ...session(new Date(2026, 8, 29, 22).toISOString(), 300) },
+      { id: 'd', ...session(new Date(2026, 8, 30, 0, 30).toISOString(), 120) },
     ]);
-    expect([...days.keys()]).toEqual(['2026-09-29']);
-    expect(days.get('2026-09-29')).toMatchObject({ minutes: 7, count: 2 });
+    expect([...days.keys()]).toEqual(['2026-09-29', '2026-09-30']);
+    expect(days.get('2026-09-29')).toMatchObject({ minutes: 15, count: 3 });
+    expect(days.get('2026-09-30')).toMatchObject({ minutes: 2, count: 1 });
   });
 });
 

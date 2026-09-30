@@ -1,5 +1,5 @@
 /** Everything the screens show, derived from core state. Plain data plus actions. */
-import { FADES, GROUPS, LENGTHS, PATTERNS, SOUNDS, TIMERS, artFor, type PatternId, type Step } from './constants';
+import { FADES, GOALS, GROUPS, LENGTHS, PATTERNS, SOUNDS, TIMERS, artFor, type PatternId, type Step } from './constants';
 import { fadeSeconds, fmt, rounds, statusLine } from './format';
 import type { Lull } from './lull';
 import { addDays, byDay, dayKey, streaks } from './practice';
@@ -56,8 +56,11 @@ export const viewModel = (c: Lull, name = '') => {
       current: streak.current,
       longest: streak.longest,
       weekMinutes: weekMin,
+      goal: s.relax.goal,
+      todayMinutes: Math.round(days.get(today)?.minutes ?? 0),
+      goals: GOALS.map(g => ({ value: g, label: `${g} min`, on: s.relax.goal === g })),
       /** The quiet line under the Relax pills. */
-      line: streak.current ? `${streak.current}-night streak · ${weekMin} min this week` : weekMin ? `${weekMin} min this week` : 'Your practice',
+      line: streak.current ? `${streak.current}-day streak · ${weekMin} min this week` : weekMin ? `${weekMin} min this week` : 'Your practice',
     },
     relaxPatterns: (Object.keys(PATTERNS) as PatternId[]).map(id => ({ id, name: PATTERNS[id].name, sub: PATTERNS[id].sub, on: s.relax.p === id })),
     relaxLengths: LENGTHS.map(v => ({ value: v, label: v ? `${v} min` : 'Open', on: s.relax.min === v })),

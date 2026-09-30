@@ -23,8 +23,8 @@ export interface Session {
 
 /** Sessions shorter than this aren't logged: a tap to see how it looks isn't practice. */
 export const MIN_SECONDS = 60;
-/** A night runs until 4 a.m.: a 12:40 a.m. session belongs to the evening before. */
-export const CUTOFF_HOUR = 4;
+/** Days are plain calendar days (midnight). A later cutoff (e.g. 4) would count just-after-midnight sessions for the day before. */
+export const CUTOFF_HOUR = 0;
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -34,7 +34,7 @@ const noon = (key: string) => {
   return new Date(y, m - 1, d, 12);
 };
 
-/** The night a moment belongs to, as `YYYY-MM-DD` in local time. */
+/** The day a moment belongs to, as `YYYY-MM-DD` in local time (after the cutoff shift). */
 export const dayKey = (at: Date | string | number, cutoff = CUTOFF_HOUR) => {
   const d = new Date(at);
   d.setHours(d.getHours() - cutoff);
@@ -48,8 +48,8 @@ export const addDays = (key: string, n: number) => {
 };
 
 /**
- * Consecutive nights with practice. `current` counts back from tonight if tonight has a session,
- * otherwise from last night: a streak isn't broken until tonight is over.
+ * Consecutive days with practice. `current` counts back from today if today has a session,
+ * otherwise from yesterday: a streak isn't broken until today is over.
  */
 export const streaks = (days: Iterable<string>, today: string) => {
   const set = new Set(days);
@@ -78,7 +78,7 @@ export interface Day {
   sessions: Session[];
 }
 
-/** Sessions grouped by night, each night's sessions oldest first. */
+/** Sessions grouped by day, each day's sessions oldest first. */
 export const byDay = (sessions: Session[], cutoff = CUTOFF_HOUR) => {
   const out = new Map<string, Day>();
   for (const s of [...sessions].sort((a, b) => a.started_at.localeCompare(b.started_at))) {

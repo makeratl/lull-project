@@ -428,3 +428,5 @@ input[type='range'] { width: 100%; margin: 0; height: 30px; accent-color: var(--
 .pfoot { font-size: 13px; }
 
 @media (prefers-reduced-motion: reduce) { .practice { animation: none; } }
+.pday-dots { display: flex; gap: 3px; height: 4px; }
+.pday-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--t3); }

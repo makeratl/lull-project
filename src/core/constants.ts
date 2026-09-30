@@ -75,6 +75,9 @@ export const PRESETS: Mix[] = [
 export const TIMERS = [15, 30, 60, 90, 0] as const;
 export const FADES = [5, 10, 20] as const;
 export const LENGTHS = [3, 5, 10, 0] as const;
+/** Daily practice goals in minutes. 5 a day is a well-studied amount (Balban et al., 2023); 15 fits a morning, afternoon and evening 5. */
+export const GOALS = [5, 10, 15] as const;
+export const DEFAULT_GOAL = 15;
 
 export const isIOS =
   typeof navigator !== 'undefined' &&

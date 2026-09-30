@@ -2,7 +2,7 @@
  * App state and actions: a typed port of the reference `lull-core.js`.
  * Framework-free; the UI subscribes and renders `viewModel(core)`.
  */
-import { ASSETS, PATTERNS, PRESETS, SOUNDS, isIOS, type Mix, type PatternId, type SoundDef } from './constants';
+import { ASSETS, DEFAULT_GOAL, PATTERNS, PRESETS, SOUNDS, isIOS, type Mix, type PatternId, type SoundDef } from './constants';
 import { LiveEngine, type Engine, type PlayState } from './engine';
 import { allFiles, decode, deleteFile, putFile, trimEdges } from './files';
 import { Gong, type Chime } from './gong';
@@ -30,7 +30,8 @@ export interface Saved {
   wave: number;
   mixes: Mix[];
   fade: number;
-  relax: { p: PatternId; min: number };
+  /** Pattern, session length (0 = open), and the daily practice goal in minutes. */
+  relax: { p: PatternId; min: number; goal: number };
   safeMode: boolean;
 }
 
@@ -56,7 +57,7 @@ export const loadSaved = (raw: string | null, ios = isIOS): Saved => {
     wave: sv.wave || 11,
     mixes: sv.mixes || PRESETS,
     fade: sv.fade ?? 10,
-    relax: sv.relax || { p: '478', min: 5 },
+    relax: { p: '478', min: 5, goal: DEFAULT_GOAL, ...sv.relax },
     safeMode: sv.safeMode ?? ios,
   };
 };
@@ -327,7 +328,12 @@ export class Lull {
   }
 
   // ─── breathing ───
-  setRelax(patch: Partial<State['relax']>) {
+  /** The daily goal only shapes the calendar; unlike the pattern or length, it doesn't restart a session. */
+  setGoal(goal: number) {
+    this.set(s => ({ relax: { ...s.relax, goal } }));
+  }
+
+  setRelax(patch: Partial<Omit<State['relax'], 'goal'>>) {
     this.set(s => ({ relax: { ...s.relax, ...patch } }));
     if (this.s.breath) this.startBreath();
   }
