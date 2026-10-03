@@ -41,7 +41,7 @@ In dev, `window.lull` exposes the core for poking at state.
 ## Brand
 
 - **The mark:** the moon resting on still water, with its reflection breaking up below. It's defined once in `src/brand/mark.ts`.
-- **Generated assets:** `npm run brand` regenerates the app icons, favicon, `public/brand/` lockups and the `public/og.png` social card from that file. Text is converted to paths from the Cormorant files in `node_modules`.
+- **Generated assets:** `npm run brand` regenerates the app icons, favicon, `public/brand/` lockups (and a classic vector card in `design/`) from that file. `npx tsx scripts/social.ts` makes the social banners in `design/social/` and the live link preview `public/og.jpg`, over a graded ComfyUI painting. Text is converted to paths from the Cormorant files in `node_modules`.
 - **Opening:** `src/ui/opening/` holds a moonrise over the water, after which the moon glides into the play button.
   - It runs about 5.4 s on a device's first launch, about 1.9 s after that, and as a plain fade under reduced motion.
   - A tap or any key skips it.

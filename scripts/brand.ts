@@ -3,7 +3,7 @@
  *
  *   public/icons/   icon.svg (favicon), icon-192/512, maskable-192/512, apple-touch-icon (180)
  *   public/brand/   lull-mark.svg (transparent), lull-lockup.svg, lull-stack.svg
- *   public/og.png   1200×630 social card
+ *   design/og-classic.png   the original 1200×630 vector card (the live one, public/og.jpg, comes from scripts/social.ts)
  *
  * Text is converted to paths (opentype.js + the Cormorant Garamond files already in node_modules),
  * so the SVGs look right anywhere and sharp can render them without system fonts.
@@ -134,5 +134,5 @@ writeFileSync('public/brand/lull-mark.svg', markSvg({ id: 'm', bg: false }));
   ${word.svg}${line1.svg}${line2.svg}${url.svg}
 </svg>`;
   writeFileSync('design/og.svg', svg);
-  await png(svg, W, 'public/og.png', H);
+  await png(svg, W, 'design/og-classic.png', H);
 }
