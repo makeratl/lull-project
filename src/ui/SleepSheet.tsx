@@ -1,6 +1,7 @@
 import type { Lull } from '../core/lull';
 import type { ViewModel } from '../core/viewModel';
 import { Fold } from './Fold';
+import { isIOS } from '../core/constants';
 
 const num = (e: Event) => Number((e.target as HTMLInputElement).value);
 const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
@@ -101,20 +102,43 @@ export function SleepSheet({ v, core }: { v: ViewModel; core: Lull }) {
         ))}
       </div>
 
-      <Fold id="settings" title="Playback">
-        <button class="toggle-row" role="switch" aria-checked={v.safeMode} onClick={() => core.setSafeMode(!v.safeMode)}>
-          <span class="mix-text">
-            <span class="mix-name">Lock-screen safe mode</span>
-            <span class="note">Plays a prepared loop, the most reliable way to keep going with the screen locked. Changes take a moment to apply.</span>
-          </span>
-          <span class={`toggle${v.safeMode ? ' on' : ''}`} />
-        </button>
-        {isAndroid && (
-          <span class="note">
-            If sound stops overnight, set Chrome’s battery usage to “Unrestricted” in Android settings.
-          </span>
-        )}
-      </Fold>
+      {/* Only iPhone has a choice to make here; Android has a battery tip; elsewhere there's nothing to set. */}
+      {(isIOS || isAndroid) && (
+        <Fold id="settings" title="Playback">
+          {isIOS && (
+            <>
+              <button class="toggle-row" role="switch" aria-checked={v.safeMode} onClick={() => core.setSafeMode(!v.safeMode)}>
+                <span class="mix-text">
+                  <span class="mix-name">Lock-screen safe mode</span>
+                  <span class="note">Plays a prepared loop, the most reliable way to keep going with the screen locked. Changes take a moment to apply.</span>
+                </span>
+                <span class={`toggle${v.safeMode ? ' on' : ''}`} />
+              </button>
+              <details class="help">
+                <summary>Hear a skip, or sound stopping? How this works</summary>
+                <p>
+                  <b>On:</b> Lull records your mix into a loop of two to three minutes and lets the iPhone repeat it.
+                  That keeps playing reliably once the phone locks, but you may hear a brief skip each time the loop starts over.
+                </p>
+                <p>
+                  <b>Off:</b> Lull plays the sound live, so there’s no loop and no skip. On older iPhones, live sound can stop
+                  a while after the screen locks.
+                </p>
+                <p>
+                  <b>Try it off</b> if the skip bothers you: start your sounds, lock the phone and wait five minutes.
+                  If it’s still playing, leave it off. If it stops overnight, turn safe mode back on.
+                  Recent iOS (17.4 and later) is the most likely to be fine with it off.
+                </p>
+              </details>
+            </>
+          )}
+          {isAndroid && (
+            <span class="note">
+              If sound stops overnight, set Chrome’s battery usage to “Unrestricted” in Android settings.
+            </span>
+          )}
+        </Fold>
+      )}
     </>
   );
 }

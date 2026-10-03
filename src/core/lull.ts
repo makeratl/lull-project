@@ -58,7 +58,8 @@ export const loadSaved = (raw: string | null, ios = isIOS): Saved => {
     mixes: sv.mixes || PRESETS,
     fade: sv.fade ?? 10,
     relax: { p: '478', min: 5, goal: DEFAULT_GOAL, ...sv.relax },
-    safeMode: sv.safeMode ?? ios,
+    // Safe mode is for iPhone's lock screen only; elsewhere live audio keeps going, so a saved "on" is ignored.
+    safeMode: ios && (sv.safeMode ?? true),
   };
 };
 

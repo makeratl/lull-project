@@ -268,6 +268,14 @@ input[type='range'] { width: 100%; margin: 0; height: 30px; accent-color: var(--
 .pill-solid { flex: none; height: 44px; padding: 0 20px; border-radius: 22px; background: var(--moon); color: #141821; font: 500 15px/44px var(--ui); }
 
 .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; }
+/* A drill-down explainer under a setting. */
+.help { margin: 2px 0 6px; font: 400 13px/1.45 var(--ui); color: var(--t3b); }
+.help summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; gap: 8px; color: var(--t2); list-style: none; }
+.help summary::-webkit-details-marker { display: none; }
+.help summary::after { content: "›"; margin-left: auto; color: var(--t3); transition: transform 0.25s var(--ease); }
+.help[open] summary::after { transform: rotate(90deg); }
+.help p { margin: 0 0 8px; }
+.help b { font-weight: 500; color: var(--t1b); }
 .toggle { flex: none; width: 50px; height: 30px; border-radius: 15px; background: var(--line-12); position: relative; transition: background 0.3s; }
 .toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--t3); transition: transform 0.3s var(--ease), background 0.3s; }
 .toggle.on { background: var(--line-40); }

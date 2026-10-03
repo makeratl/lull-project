@@ -113,7 +113,7 @@ In dev, `window.lull` exposes the core for poking at state.
 
 ## Lock-screen safe mode
 
-- On by default on iPhone/iPad, and switchable under **Sounds & timer → Playback**.
+- iPhone/iPad only: on by default, switchable under **Sounds & timer → Playback**, with a "How this works" note (the loop can skip briefly when it restarts; live mode has no seam but may stop on older iOS when locked). Elsewhere the switch is hidden and safe mode is always off.
 - The mix is rendered offline into a seamless loop: 32 kHz stereo, 2 minutes (about 15 MB), or up to 3 minutes when a recording is on. Rendering takes about 0.3 s on desktop.
 - The loop plays through a plain `<audio loop>` element.
 - iOS ignores `audio.volume`, so the timer fade is played as loop-length segments with the gain ramp baked in. They start from the exact loop position and are chained on `ended`.

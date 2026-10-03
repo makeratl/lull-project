@@ -74,6 +74,8 @@ describe('state', () => {
     expect(loadSaved('{"relax":{"p":"box","min":10}}', false).relax).toEqual({ p: 'box', min: 10, goal: 15 });
     expect(s.mixes.map(m => m.name)).toEqual(['Just the ocean', 'Ocean & brown', 'Rain on the roof']);
     expect(loadSaved(null, true).safeMode).toBe(true);
+    expect(loadSaved('{"safeMode":false}', true).safeMode).toBe(false);
+    expect(loadSaved('{"safeMode":true}', false).safeMode).toBe(false);
     expect(loadSaved('{"timer":0}', false).timer).toBe(0);
     expect(loadSaved('not json', false).timer).toBe(60);
   });
