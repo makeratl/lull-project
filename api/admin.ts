@@ -8,18 +8,22 @@ export const GET = handle(async req => {
   const admin = supabaseAdmin();
   const [invites, users] = await Promise.all([
     // Revoked invites are dead ends; the screen never shows them.
-    admin.from('invitations').select('code, for_whom, status, created_at, redeemed_at, redeemed_by, created_by, expires_at').neq('status', 'revoked').order('created_at', { ascending: false }).limit(200),
+    admin.from('invitations').select('id, code, for_whom, status, created_at, redeemed_at, redeemed_by, created_by, expires_at, max_uses, uses').neq('status', 'revoked').order('created_at', { ascending: false }).limit(200),
     admin.from('profiles').select('*').order('joined_at'),
   ]);
   if (invites.error) throw invites.error;
   if (users.error) throw users.error;
   const names = new Map((users.data as Profile[]).map(u => [u.id, u.name]));
+  // Who came in through each group invite, in the order they joined.
+  const joined = new Map<string, string[]>();
+  for (const u of users.data as Profile[]) if (u.invitation_id) joined.set(u.invitation_id, [...(joined.get(u.invitation_id) ?? []), u.name]);
   return ok({
     invites: invites.data
       // An open invite past its date is as good as gone.
       .filter(i => !(i.status === 'open' && i.expires_at && i.expires_at < new Date().toISOString()))
-      .map(i => ({
+      .map(({ id, ...i }) => ({
         ...i,
+        joined: i.max_uses === 1 ? [] : joined.get(id) ?? [],
         redeemed_by_name: i.redeemed_by ? names.get(i.redeemed_by) ?? null : null,
         created_by_name: i.created_by ? names.get(i.created_by) ?? null : null,
       })),
@@ -29,7 +33,8 @@ export const GET = handle(async req => {
 
 const action = z.discriminatedUnion('action', [
   // Every invite is for someone: the name is how the admin tells them apart later.
-  z.object({ action: z.literal('invite'), forWhom: z.string().trim().min(1).max(120) }),
+  // maxUses: how many people can join with it; null for no limit (a group link, until revoked).
+  z.object({ action: z.literal('invite'), forWhom: z.string().trim().min(1).max(120), maxUses: z.number().int().min(1).max(10000).nullable().default(1) }),
   z.object({ action: z.literal('revoke'), code: z.string().max(20) }),
   z.object({ action: z.literal('suspend'), id: z.string().uuid() }),
   z.object({ action: z.literal('reactivate'), id: z.string().uuid() }),
@@ -52,9 +57,9 @@ export const POST = handle(async req => {
 
   switch (body.action) {
     case 'invite': {
-      const { data, error } = await admin.rpc('create_invitation', { p_by: me.id, p_for: body.forWhom });
+      const { data, error } = await admin.rpc('create_invitation', { p_by: me.id, p_for: body.forWhom, p_max_uses: body.maxUses });
       if (error) throw error;
-      await audit(me.id, 'invite_create', null, { code: (data as { code: string }).code });
+      await audit(me.id, 'invite_create', null, { code: (data as { code: string }).code, max_uses: body.maxUses });
       return ok({ invite: data }, 201);
     }
     case 'revoke': {

@@ -16,6 +16,11 @@ interface Invite {
   created_by: string | null;
   created_by_name: string | null;
   expires_at: string | null;
+  /** How many people can join with it; null for no limit. */
+  max_uses: number | null;
+  uses: number;
+  /** Group invites: who has joined with it so far. */
+  joined: string[];
 }
 interface User {
   id: string;
@@ -30,6 +35,10 @@ interface User {
 }
 
 const date = (s: string) => new Date(s).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+/** What an invite allows, for its card and its row. */
+const reach = (max: number | null, uses = 0) =>
+  max === 1 ? 'Works once' : max === null ? `${uses} joined · no limit` : `${uses} of ${max} joined`;
+
 const post = <T,>(body: unknown) => api<T>('/api/admin', { method: 'POST', body: JSON.stringify(body) });
 
 function Qr({ text }: { text: string }) {
@@ -48,7 +57,10 @@ export function Admin({ me, onBack }: { me: Me; onBack: () => void }) {
   const [data, setData] = useState<{ invites: Invite[]; users: User[] } | null>(null);
   const [forWhom, setForWhom] = useState('');
   /** The invite whose QR and link are shown: a new one, or an open one reopened with Share. */
-  const [shown, setShown] = useState<{ code: string; forWhom: string } | null>(null);
+  const [shown, setShown] = useState<{ code: string; forWhom: string; max: number | null } | null>(null);
+  /** How many people the next invite is for: one, up to a number, or anyone with the link. */
+  const [reachMode, setReachMode] = useState<'one' | 'some' | 'any'>('one');
+  const [count, setCount] = useState(10);
   const [filter, setFilter] = useState<'open' | 'all'>('open');
   const [confirming, setConfirming] = useState('');
   const [link, setLink] = useState<{ name: string; url: string } | null>(null);
@@ -110,18 +122,45 @@ export function Admin({ me, onBack }: { me: Me; onBack: () => void }) {
             e.preventDefault();
             if (!name) return;
             run(async () => {
-              const r = await post<{ invite: { code: string } }>({ action: 'invite', forWhom: name });
-              setShown({ code: r.invite.code, forWhom: name });
+              const maxUses = reachMode === 'one' ? 1 : reachMode === 'some' ? count : null;
+              const r = await post<{ invite: { code: string } }>({ action: 'invite', forWhom: name, maxUses });
+              setShown({ code: r.invite.code, forWhom: name, max: maxUses });
               setForWhom('');
+              setReachMode('one');
               setFilter('open');
             });
           }}
         >
           <label class="field">
             <span class="label">Who is it for?</span>
-            <input value={forWhom} maxLength={120} required placeholder="Their name" onInput={e => setForWhom((e.target as HTMLInputElement).value)} />
+            <input value={forWhom} maxLength={120} required placeholder={reachMode === 'one' ? 'Their name' : 'A name for the group, e.g. Book club'} onInput={e => setForWhom((e.target as HTMLInputElement).value)} />
             <span class="muted">Only admins see this. It’s how you’ll tell your invites apart.</span>
           </label>
+          <div class="field">
+            <span class="label">How many people can join with it?</span>
+            <div class="seg" role="group" aria-label="How many people" style={{ alignSelf: 'flex-start' }}>
+              <button type="button" class={reachMode === 'one' ? 'on' : ''} aria-pressed={reachMode === 'one'} onClick={() => setReachMode('one')}>One</button>
+              <button type="button" class={reachMode === 'some' ? 'on' : ''} aria-pressed={reachMode === 'some'} onClick={() => setReachMode('some')}>Up to…</button>
+              <button type="button" class={reachMode === 'any' ? 'on' : ''} aria-pressed={reachMode === 'any'} onClick={() => setReachMode('any')}>No limit</button>
+            </div>
+            {reachMode === 'some' && (
+              <input
+                type="number"
+                inputMode="numeric"
+                min={2}
+                max={10000}
+                value={count}
+                aria-label="Up to how many people"
+                onInput={e => setCount(Math.max(2, Math.min(10000, Math.floor(Number((e.target as HTMLInputElement).value) || 2))))}
+              />
+            )}
+            {reachMode !== 'one' && (
+              <span class="muted">
+                A group invite: one QR code and link for everyone{reachMode === 'some' ? `, until ${count} people have joined` : ' who has it, until you revoke it'}.
+                Anyone with it can join, so share it where you mean to.
+              </span>
+            )}
+          </div>
           <button class="btn-primary" type="submit" disabled={!name}>Create invite</button>
         </form>
 
@@ -138,7 +177,13 @@ export function Admin({ me, onBack }: { me: Me; onBack: () => void }) {
               <button class="btn-quiet" onClick={() => copy(url, 'link')}>{copied === 'link' ? 'Copied' : 'Copy link'}</button>
               <button class="btn-quiet" onClick={() => copy(formatCode(shown.code), 'code')}>{copied === 'code' ? 'Copied' : 'Copy code'}</button>
             </div>
-            <span class="muted" style={{ textAlign: 'center' }}>Works once. It doesn’t expire; revoke it below if it isn’t needed.</span>
+            <span class="muted" style={{ textAlign: 'center' }}>
+              {shown.max === 1
+                ? 'Works once. It doesn’t expire; revoke it below if it isn’t needed.'
+                : shown.max === null
+                  ? 'Anyone with it can join, with no limit. It works until you revoke it below.'
+                  : `Up to ${shown.max} people can join with it. It doesn’t expire; revoke it below to close it early.`}
+            </span>
           </div>
         )}
 
@@ -156,9 +201,14 @@ export function Admin({ me, onBack }: { me: Me; onBack: () => void }) {
               {invites.map(i => (
                 <div key={i.code} class="list-row">
                   <div class="main">
-                    <span class="title">{i.for_whom || 'Unnamed invite'}</span>
+                    <span class="title">
+                      {i.for_whom || 'Unnamed invite'}
+                      {i.max_uses !== 1 && <span class="badge">Group</span>}
+                    </span>
                     <span class="note">
-                      {i.status === 'redeemed'
+                      {i.max_uses !== 1
+                        ? `${formatCode(i.code)} · ${reach(i.max_uses, i.uses)}${i.status === 'redeemed' ? ' · full' : ''}${i.joined.length ? `: ${i.joined.join(', ')}` : ''}`
+                        : i.status === 'redeemed'
                         ? `Joined${i.redeemed_by_name && i.redeemed_by_name !== i.for_whom ? ` as ${i.redeemed_by_name}` : ''} · ${date(i.redeemed_at!)}`
                         : `${formatCode(i.code)} · waiting since ${date(i.created_at)}${i.expires_at ? ` · until ${date(i.expires_at)}` : ''}`}
                       {i.created_by && i.created_by !== me.id && i.created_by_name ? ` · shared by ${i.created_by_name}` : ''}
@@ -173,7 +223,7 @@ export function Admin({ me, onBack }: { me: Me; onBack: () => void }) {
                         </>
                       ) : (
                         <>
-                          <button class="btn-quiet" onClick={() => { setShown({ code: i.code, forWhom: i.for_whom || 'someone' }); scrollTo({ top: 0, behavior: 'smooth' }); }}>Share</button>
+                          <button class="btn-quiet" onClick={() => { setShown({ code: i.code, forWhom: i.for_whom || 'someone', max: i.max_uses }); scrollTo({ top: 0, behavior: 'smooth' }); }}>Share</button>
                           <button class="btn-quiet" onClick={() => setConfirming(i.code)}>Revoke…</button>
                         </>
                       )}
@@ -188,7 +238,7 @@ export function Admin({ me, onBack }: { me: Me; onBack: () => void }) {
         {data && (
           <div class="section">
             <span class="label">Members · {data.users.length}</span>
-            <span class="muted">Members use Lull on their own devices; their sounds and settings never leave them. Anyone can share Lull (up to 5 invites waiting, each good for 30 days). Admins can also invite without limits, pause a member, stop someone sharing, and make a password reset link.</span>
+            <span class="muted">Members use Lull on their own devices; their sounds and settings never leave them. Anyone can share Lull (up to 5 invites waiting, each good for 30 days). Admins can also invite without limits, make group invites that several people can join with, pause a member, stop someone sharing, and make a password reset link.</span>
             {link && (
               <div class="card">
                 <span class="card-note">Reset link for {link.name}. Send it to them directly; it works once.</span>

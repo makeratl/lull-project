@@ -83,6 +83,7 @@ In dev, `window.lull` exposes the core for poking at state.
 
 - **Everyone can share:** **Share Lull** in the account menu (tap "Lull") opens straight to an invite's QR code and link. A name is optional for members; the admin page still requires one.
 - **Member invites:** single use, up to 5 waiting at a time, and they expire after 30 days unused. Admin invites have no limit and don't expire. An admin can stop a member sharing (**Stop sharing**).
+- **Group invites (admins only):** on the People page, choose **One**, **Up to…** a number, or **No limit**. One QR code and link that several people join with; it stays open until full or revoked. `invitations.max_uses` (null = no limit) and `uses` count it, and each profile's `invitation_id` records the invite they used, so the row lists who came through it. Redemption locks the row, so concurrent joins can't overfill it.
 - **The tree:** each profile's `invited_by` is whoever made the code they joined with (`shared/tree.ts` builds it).
   - Members see their own branch: names and join dates only.
   - The admin page shows the whole tree, and which member shared each waiting invite.
