@@ -111,6 +111,12 @@ In dev, `window.lull` exposes the core for poking at state.
 - **Live:** scares are scheduled 3 minutes ahead on the audio clock and topped up every 30 s.
 - **Safe mode:** 2–3 scares are baked into the 2-minute loop, so they repeat each loop.
 
+## Welcome tour
+
+- A show-only spotlight tour of the real app (`src/ui/Tour.tsx`): welcome, the moon, Sounds & timer, Relax, the streak line, the "Lull" menu, done. Skip, Back, Next, and Escape and arrow keys; nothing plays.
+- Once per account, after the opening: remembered on the device (`lull.tour.<userId>`) and on the account (Supabase auth `user_metadata.tour`), so another device doesn't repeat it. Replay from the Lull menu → **Take the tour**.
+- Bump `TOUR_VERSION` in `src/core/tour.ts` to show it to everyone again (say, after adding steps for new features).
+
 ## Lock-screen safe mode
 
 - iPhone/iPad only: on by default, switchable under **Sounds & timer → Playback**, with a "How this works" note (the loop can skip briefly when it restarts; live mode has no seam but may stop on older iOS when locked). Elsewhere the switch is hidden and safe mode is always off.

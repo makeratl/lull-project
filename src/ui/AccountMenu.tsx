@@ -2,7 +2,7 @@ import type { Me } from '../auth/session';
 import { ChangePassword } from '../auth/ChangePassword';
 
 /** The account menu, opened from the "Lull" wordmark: global, so it lives outside the screens' sheets. */
-export function AccountMenu({ me, onClose, onSignOut, onAdmin, onShare }: { me: Me; onClose: () => void; onSignOut: () => void; onAdmin: () => void; onShare: () => void }) {
+export function AccountMenu({ me, onClose, onSignOut, onAdmin, onShare, onTour }: { me: Me; onClose: () => void; onSignOut: () => void; onAdmin: () => void; onShare: () => void; onTour: () => void }) {
   return (
     <>
       <div class="menu-backdrop" onClick={onClose} />
@@ -22,6 +22,10 @@ export function AccountMenu({ me, onClose, onSignOut, onAdmin, onShare }: { me: 
             <span class="menu-chev" aria-hidden="true" />
           </button>
         )}
+        <button class="menu-item" onClick={onTour}>
+          <span>Take the tour</span>
+          <span class="menu-chev" aria-hidden="true" />
+        </button>
         <div class="menu-block">
           <ChangePassword email={me.email} />
         </div>

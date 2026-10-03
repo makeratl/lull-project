@@ -10,6 +10,8 @@ import { Practice } from './Practice';
 import { Share } from './Share';
 import type { Me } from '../auth/session';
 import { Opening, openingMode } from './opening/Opening';
+import { Tour } from './Tour';
+import { hasSeenTour, markTourSeen } from '../auth/tour';
 
 const MODES = ['Sleep', 'Relax'] as const;
 const EASE = 'transform .5s cubic-bezier(.2,.8,.2,1)';
@@ -27,6 +29,7 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
   const [menu, setMenu] = useState(false);
   const [practice, setPractice] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [tour, setTour] = useState(false);
   const [drag, setDrag] = useState({ x: 0, y: 0, sheet: 0, on: false });
   const g = useRef<{ x: number; y: number; axis: 'x' | 'y' | null } | null>(null);
   const sg = useRef<{ y: number } | null>(null);
@@ -40,6 +43,24 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
     if (m !== modeRef.current && core.s.breath) core.closeBreath(false);
     setModeRaw(m);
   };
+
+  const startTour = () => {
+    setSheet(false); setMenu(false); setPractice(false); setSharing(false);
+    setTour(true);
+  };
+  const endTour = () => {
+    setTour(false);
+    setMode(0);
+    markTourSeen(me);
+  };
+
+  // The welcome tour, once per account, after the opening has played.
+  useEffect(() => {
+    if (stage !== 'on') return;
+    let live = true;
+    hasSeenTour(me).then(seen => { if (live && !seen) startTour(); });
+    return () => { live = false; };
+  }, [stage, me.id]);
 
   /** Ignore taps right after a swipe, so a swipe across the moon doesn't toggle play. */
   const guard = (fn: () => void) => () => {
@@ -62,7 +83,7 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
 
   const onDown = (e: PointerEvent) => {
     core.touch();
-    if (sheet || menu || practice || sharing || core.s.dim) return;
+    if (sheet || menu || practice || sharing || tour || core.s.dim) return;
     if ((e.target as HTMLElement).closest?.('input,label')) return;
     g.current = { x: e.clientX, y: e.clientY, axis: null };
   };
@@ -179,9 +200,11 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
 
       {practice && <Practice core={core} onClose={() => setPractice(false)} />}
 
-      {menu && <AccountMenu me={me} onClose={() => setMenu(false)} onSignOut={onSignOut} onAdmin={onAdmin} onShare={() => { setMenu(false); setSharing(true); }} />}
+      {menu && <AccountMenu me={me} onClose={() => setMenu(false)} onSignOut={onSignOut} onAdmin={onAdmin} onShare={() => { setMenu(false); setSharing(true); }} onTour={startTour} />}
 
       {sharing && <Share onClose={() => setSharing(false)} />}
+
+      {tour && <Tour name={me.name} mode={mode} setMode={setMode} onDone={endTour} />}
 
       {opening && stage !== 'on' && (
         <Opening mode={opening} onReveal={() => setStage('reveal')} onDone={() => setStage('on')} />
