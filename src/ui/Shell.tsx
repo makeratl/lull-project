@@ -5,6 +5,8 @@ import { Sleep } from './Sleep';
 import { Relax } from './Relax';
 import { SleepSheet } from './SleepSheet';
 import { RelaxSheet } from './RelaxSheet';
+import { Journey } from './Journey';
+import { JourneySheet } from './JourneySheet';
 import { AccountMenu } from './AccountMenu';
 import { Practice } from './Practice';
 import { Share } from './Share';
@@ -13,7 +15,7 @@ import { Opening, openingMode } from './opening/Opening';
 import { Tour } from './Tour';
 import { hasSeenTour, markTourSeen } from '../auth/tour';
 
-const MODES = ['Sleep', 'Relax'] as const;
+const MODES = ['Sleep', 'Relax', 'Journey'] as const;
 const EASE = 'transform .5s cubic-bezier(.2,.8,.2,1)';
 
 export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; onSignOut: () => void; onAdmin: () => void }) {
@@ -137,7 +139,7 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
   const closeSheet = () => setSheet(false);
   const togglePlay = guard(() => core.togglePlay());
 
-  const trackX = `calc(${-mode * 50}% + ${drag.x}px)`;
+  const trackX = `calc(${(-mode * 100) / MODES.length}% + ${drag.x}px)`;
   const sheetY = sheet ? `${drag.sheet}px` : `calc(100% + ${drag.y}px)`;
   const backdropOpacity = sheet ? 1 - Math.min(1, drag.sheet / 400) : Math.min(1, -drag.y / 220);
 
@@ -168,6 +170,14 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
           openSheet={openSheet}
           openPractice={guard(() => setPractice(true))}
         />
+        <Journey
+          v={v}
+          active={mode === 2}
+          toggle={guard(() => core.toggleJourney())}
+          pick={id => core.pickJourney(id)}
+          setOutput={o => core.setJourneyOutput(o)}
+          openSheet={openSheet}
+        />
       </div>
 
       <div
@@ -185,15 +195,17 @@ export function Shell({ core, me, onSignOut, onAdmin }: { core: Lull; me: Me; on
         <div class="sheet-head" onPointerDown={onSheetDown} onPointerMove={onSheetMove} onPointerUp={onSheetUp} onPointerCancel={onSheetUp}>
           <span class="grabber" />
           <div class="sheet-title-row">
-            <span class="sheet-title">{mode === 0 ? 'Sounds & timer' : 'Session'}</span>
+            <span class="sheet-title">{['Sounds & timer', 'Session', 'Journey'][mode]}</span>
             <button class="done" onPointerDown={e => e.stopPropagation()} onClick={closeSheet}>Done</button>
           </div>
         </div>
         <div class="sheet-body">
           {mode === 0 ? (
             <SleepSheet v={v} core={core} />
-          ) : (
+          ) : mode === 1 ? (
             <RelaxSheet v={v} core={core} openPractice={() => { setSheet(false); setPractice(true); }} />
+          ) : (
+            <JourneySheet v={v} core={core} />
           )}
         </div>
       </div>

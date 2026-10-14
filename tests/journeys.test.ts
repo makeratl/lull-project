@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { JOURNEYS, JourneyVoice, bandOf, durationOf, gongAt, paramsAt, resolveFrames } from '../src/core/journeys';
+import { JOURNEYS, JourneyVoice, bandOf, durationOf, gongAt, journeyById, paramsAt, phaseOf, resolveFrames } from '../src/core/journeys';
 
 /** A repeatable stand-in for Math.random. */
 const seeded = (s = 1) => () => ((s = (s * 16807) % 2147483647) / 2147483647);
@@ -23,6 +23,17 @@ describe('journeys', () => {
     expect(mid).toBeLessThan(7);
     expect(mid).toBeGreaterThan(4.5);
     expect(paramsAt(f, 99 * 60).level).toBe(0);
+  });
+
+  it('names the phase for the screen', () => {
+    const at = (id: Parameters<typeof journeyById>[0], min: number) => phaseOf(journeyById(id), min * 60);
+    expect(at('drift', 0.5)).toBe('Arriving');
+    expect(at('drift', 10)).toBe('Descending');
+    expect(at('drift', 20)).toBe('Holding');
+    expect(at('drift', 35)).toBe('Returning');
+    expect(at('focus', 3)).toBe('Rising');
+    expect(at('focus', 23)).toBe('Returning');
+    expect(at('dream', 38)).toBe('Dissolving');
   });
 
   it('only return endings ring the gong, just before the end', () => {
