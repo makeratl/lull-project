@@ -141,6 +141,23 @@ export const paramsAt = (frames: (Params & { at: number })[], t: number): Params
   };
 };
 
+/**
+ * What the journey is doing at `t` seconds, for the screen. A return journey is "returning" once it
+ * heads back toward alpha (10 Hz) in its second half.
+ */
+export const phaseOf = (j: Journey, t: number) => {
+  const f = resolveFrames(j), m = t / 60;
+  if (m < f[1].at) return 'Arriving';
+  let i = 1;
+  while (i < f.length - 1 && f[i].at <= m) i++;
+  const a = f[i - 1], b = f[i];
+  if (i === f.length - 1) return j.ending === 'dissolve' ? 'Dissolving' : 'Returning';
+  if (j.ending === 'return' && m > f[f.length - 1].at / 2 && Math.abs(b.beat - 10) < Math.abs(a.beat - 10) - 0.3) return 'Returning';
+  if (b.beat > a.beat * 1.05) return 'Rising';
+  if (b.beat < a.beat / 1.05) return 'Descending';
+  return 'Holding';
+};
+
 export type Band = 'delta' | 'theta' | 'alpha' | 'beta' | 'gamma';
 export const bandOf = (beat: number): Band =>
   beat < 4 ? 'delta' : beat < 8 ? 'theta' : beat < 13 ? 'alpha' : beat < 30 ? 'beta' : 'gamma';

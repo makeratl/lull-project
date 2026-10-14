@@ -3,6 +3,7 @@ import { FADES, GOALS, GROUPS, LENGTHS, PATTERNS, SOUNDS, TIMERS, artFor, type P
 import { fadeSeconds, fmt, rounds, statusLine } from './format';
 import type { Lull } from './lull';
 import { addDays, byDay, dayKey, streaks } from './practice';
+import { JOURNEYS, durationOf, journeyById, phaseOf, type Output } from './journeys';
 
 export const viewModel = (c: Lull, name = '') => {
   const s = c.s, now = s.now;
@@ -17,6 +18,8 @@ export const viewModel = (c: Lull, name = '') => {
   let week = 0;
   for (let i = 0; i < 7; i++) week += days.get(addDays(today, -i))?.minutes ?? 0;
   const weekMin = Math.round(week);
+  const jr = s.journey, J = journeyById(jr?.id ?? s.journeys.id);
+  const jLeft = jr ? Math.max(0, jr.ends - now) : null;
   const sounds = c.all().map(x => ({ ...x, on: !!s.active[x.id], custom: !!x.custom, art: artFor(x), pct: Math.round((s.levels[x.id] ?? 0.5) * 100) }));
 
   return {
@@ -76,10 +79,22 @@ export const viewModel = (c: Lull, name = '') => {
         ? `${fmt(b.until - now)} left${b.cycles ? ' · ' + rounds(b.cycles) : ''}`
         : b.cycles ? rounds(b.cycles) : 'Follow the moon'
       : s.relax.min ? `${s.relax.min} minute session` : 'Open session',
+    // Journey
+    journeys: JOURNEYS.map(j => ({ id: j.id, name: j.name, sub: j.sub, minutes: durationOf(j) / 60, ending: j.ending, on: j.id === J.id })),
+    journeyName: J.name,
+    journeySub: J.sub,
+    journeyRunning: !!jr,
+    /** 0–1 through the journey, for the ring around the moon. */
+    journeyProgress: jr ? Math.min(1, (now - jr.started) / (jr.ends - jr.started)) : 0,
+    journeyLabel: jr ? (jLeft ? phaseOf(J, (now - jr.started) / 1000) : 'Ending') : 'Tap the moon to begin',
+    journeyCount: jLeft != null ? `${fmt(jLeft)} left` : '',
+    journeyMeta: `${durationOf(J) / 60} min · ${J.ending === 'return' ? 'returns with the gong' : 'dissolves into sleep'}`,
+    output: s.journeys.output,
+    outputs: (['speaker', 'headphones'] as Output[]).map(o => ({ value: o, label: o === 'speaker' ? 'Speaker' : 'Headphones', on: s.journeys.output === o })),
     // Dim
     dim: s.dim,
-    dimBig: rem != null ? fmt(rem) : clock,
-    dimSmall: rem != null ? 'until silence · tap to wake' : 'playing all night · tap to wake',
+    dimBig: rem != null ? fmt(rem) : jLeft != null ? fmt(jLeft) : clock,
+    dimSmall: rem != null ? 'until silence · tap to wake' : jLeft != null ? `${J.name} · tap to wake` : 'playing all night · tap to wake',
     safeMode: s.safeMode,
     fadeSeconds: fadeSeconds(s.timer, s.fade),
   };

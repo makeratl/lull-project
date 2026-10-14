@@ -8,6 +8,8 @@ import { allFiles, decode, deleteFile, putFile, trimEdges } from './files';
 import { Gong, type Chime } from './gong';
 import { MIN_SECONDS, type PracticeLog, type Session } from './practice';
 import { SafeEngine } from './safeMode';
+import { durationOf, journeyById, type JourneyId, type Output } from './journeys';
+import { LiveJourney, SafeJourney, type JourneyPlayer } from './journeyPlayer';
 
 export const KEY = 'lull.v2';
 
@@ -33,6 +35,15 @@ export interface Saved {
   /** Pattern, session length (0 = open), and the daily practice goal in minutes. */
   relax: { p: PatternId; min: number; goal: number };
   safeMode: boolean;
+  /** The chosen journey, and how it's heard (remembered). */
+  journeys: { id: JourneyId; output: Output };
+}
+
+/** A journey under way. */
+export interface JourneyRun {
+  id: JourneyId;
+  started: number;
+  ends: number;
 }
 
 export interface State extends Saved {
@@ -42,6 +53,7 @@ export interface State extends Saved {
   dim: boolean;
   now: number;
   breath: Breath | null;
+  journey: JourneyRun | null;
   fileError: string | null;
 }
 
@@ -60,6 +72,7 @@ export const loadSaved = (raw: string | null, ios = isIOS): Saved => {
     relax: { p: '478', min: 5, goal: DEFAULT_GOAL, ...sv.relax },
     // Safe mode is for iPhone's lock screen only; elsewhere live audio keeps going, so a saved "on" is ignored.
     safeMode: ios && (sv.safeMode ?? true),
+    journeys: { id: 'dream', output: 'speaker', ...sv.journeys },
   };
 };
 
@@ -84,11 +97,12 @@ export class Lull {
   private saved = '';
   private iv: ReturnType<typeof setInterval>;
   private biv?: ReturnType<typeof setInterval>;
+  private jp: JourneyPlayer | null = null;
 
   constructor(private storage: Pick<Storage, 'getItem' | 'setItem'> | null = typeof localStorage !== 'undefined' ? localStorage : null) {
     let raw: string | null = null;
     try { raw = storage?.getItem(KEY) ?? null; } catch { /* private mode */ }
-    this.s = { ...loadSaved(raw), customs: [], playing: false, endsAt: null, dim: false, now: Date.now(), breath: null, fileError: null };
+    this.s = { ...loadSaved(raw), customs: [], playing: false, endsAt: null, dim: false, now: Date.now(), breath: null, journey: null, fileError: null };
     this.iv = setInterval(() => this.tick(), 1000);
   }
 
@@ -149,6 +163,7 @@ export class Lull {
     clearInterval(this.biv);
     this.live.destroy();
     this.safe?.destroy();
+    this.jp?.destroy();
   }
 
   set(p: Partial<State> | ((s: State) => Partial<State>)) {
@@ -158,8 +173,8 @@ export class Lull {
   }
 
   save() {
-    const { levels, active, timer, wave, mixes, fade, relax, safeMode } = this.s;
-    const j = JSON.stringify({ levels, active, timer, wave, mixes, fade, relax, safeMode });
+    const { levels, active, timer, wave, mixes, fade, relax, safeMode, journeys } = this.s;
+    const j = JSON.stringify({ levels, active, timer, wave, mixes, fade, relax, safeMode, journeys });
     if (j !== this.saved) {
       this.saved = j;
       try { this.storage?.setItem(KEY, j); } catch { /* quota or private mode */ }
@@ -235,7 +250,7 @@ export class Lull {
   tick() {
     const now = Date.now(), s = this.s;
     if (s.playing && s.endsAt && now >= s.endsAt) { this.stop(); return; }
-    if (s.playing && !s.dim && !s.breath && now - this.last > 30000) s.dim = true;
+    if ((s.playing || s.journey) && !s.dim && !s.breath && now - this.last > 30000) s.dim = true;
     s.now = now;
     this.emit();
   }
@@ -389,6 +404,49 @@ export class Lull {
     const s: Omit<Session, 'id'> = { pattern: b.p, started_at: new Date(b.started).toISOString(), seconds, rounds: b.cycles, planned_min: b.min, completed };
     this.practice.record(s);
   }
+
+  // ─── journeys ───
+  /** Picking another journey mid-way starts it fresh, like changing the breathing pattern. */
+  pickJourney(id: JourneyId) {
+    this.set(s => ({ journeys: { ...s.journeys, id } }));
+    if (this.s.journey && this.s.journey.id !== id) {
+      this.jp?.stop();
+      this.jp = null;
+      this.startJourney();
+    }
+  }
+
+  setJourneyOutput(output: Output) {
+    this.set(s => ({ journeys: { ...s.journeys, output } }));
+    this.jp?.setOutput(output);
+  }
+
+  /** Must run inside a tap: it unlocks the audio. */
+  startJourney() {
+    const { id, output } = this.s.journeys, j = journeyById(id), now = Date.now();
+    this.jp?.destroy();
+    const done = () => {
+      if (this.jp !== player) return;
+      this.jp = null;
+      this.last = Date.now();
+      this.set({ journey: null });
+    };
+    const player: JourneyPlayer = this.s.safeMode ? new SafeJourney(j, output, done) : new LiveJourney(j, output, done);
+    this.jp = player;
+    this.last = now;
+    this.set({ journey: { id, started: now, ends: now + durationOf(j) * 1000 } });
+    player.start();
+  }
+
+  /** Stopped by hand: a short fade, no gong. */
+  stopJourney() {
+    this.jp?.stop();
+    this.jp = null;
+    this.last = Date.now();
+    this.set({ journey: null, dim: false });
+  }
+
+  toggleJourney() { if (this.s.journey) this.stopJourney(); else this.startJourney(); }
 
   // ─── dim ───
   goDim() { this.s.dim = true; this.emit(); }

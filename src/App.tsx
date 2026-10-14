@@ -46,6 +46,7 @@ export function App() {
 
   const leave = async () => {
     core?.stop();
+    core?.stopJourney();
     await signOut();
     setMe(null);
     nav('/', true);
@@ -56,10 +57,10 @@ export function App() {
     if (!me) return;
     let last = 0;
     const check = async () => {
-      if (core?.s.playing || Date.now() - last < 60_000) return;
+      if (core?.s.playing || core?.s.journey || Date.now() - last < 60_000) return;
       last = Date.now();
       const r = await verify();
-      if (r === undefined || core?.s.playing) return;
+      if (r === undefined || core?.s.playing || core?.s.journey) return;
       if (r === null) {
         await signOut();
         setMe(null);
