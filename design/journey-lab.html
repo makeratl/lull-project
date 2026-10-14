@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lull · journey lab</title>
+    <style>
+      @import '/node_modules/@fontsource/cormorant-garamond/500-italic.css';
+      @import '/node_modules/@fontsource/cormorant-garamond/400.css';
+      @import '/node_modules/@fontsource-variable/newsreader/opsz.css';
+      :root {
+        --bg: #11141b; --sheet: #161a23; --card: #1b202a; --moon: #cdd8ea;
+        --line: rgba(205, 216, 234, .1); --line2: rgba(205, 216, 234, .2);
+        --t1: #f1f3f7; --t2: #c3c9d4; --t3: #969dab; --dim: #5d6577;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--t1); font-family: 'Newsreader Variable', Georgia, serif; }
+      main { max-width: 980px; margin: 0 auto; padding: 32px 16px 64px; display: flex; flex-direction: column; gap: 22px; }
+      h1 { margin: 0; font: 400 40px/1 'Cormorant Garamond', serif; }
+      .lede { margin: 0; color: var(--t3); line-height: 1.45; }
+      .panel { background: var(--sheet); border: 1px solid var(--line); border-radius: 22px; padding: 18px; }
+      .journeys { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+      .j { text-align: left; background: var(--card); color: var(--t1); border: 1px solid var(--line); border-radius: 16px; padding: 14px; cursor: pointer; font: inherit; }
+      .j[aria-pressed='true'] { border-color: var(--moon); box-shadow: 0 0 0 1px var(--moon) inset; }
+      .j b { display: block; font: italic 500 24px/1.1 'Cormorant Garamond', serif; color: var(--moon); }
+      .j span { display: block; color: var(--t3); font-size: 14px; margin-top: 4px; }
+      .j small { display: block; color: var(--dim); font-size: 12px; margin-top: 8px; letter-spacing: .06em; text-transform: uppercase; }
+      .controls { display: flex; flex-wrap: wrap; gap: 18px 26px; align-items: end; }
+      .ctl { display: flex; flex-direction: column; gap: 6px; }
+      .cap { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--t3); }
+      .seg { display: inline-flex; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+      .seg button { background: none; border: 0; color: var(--t2); font: inherit; font-size: 14px; padding: 6px 14px; border-radius: 999px; cursor: pointer; }
+      .seg button[aria-pressed='true'] { background: var(--moon); color: var(--bg); }
+      select, input[type=range] { accent-color: var(--moon); }
+      select { background: var(--card); color: var(--t1); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; font: inherit; }
+      .go { margin-left: auto; background: var(--moon); color: var(--bg); border: 0; border-radius: 999px; padding: 12px 26px; font: italic 500 22px/1 'Cormorant Garamond', serif; cursor: pointer; }
+      .go.stop { background: none; color: var(--moon); box-shadow: 0 0 0 1px var(--moon) inset; }
+      canvas { width: 100%; height: 260px; display: block; cursor: crosshair; }
+      .read { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; margin-top: 14px; }
+      .read div { display: flex; flex-direction: column; gap: 2px; }
+      .read b { font: 500 26px/1 'Cormorant Garamond', serif; color: var(--t1); font-variant-numeric: tabular-nums; }
+      .note { color: var(--t3); font-size: 14px; line-height: 1.45; margin: 10px 0 0; }
+      @media (max-width: 560px) { .go { margin-left: 0; width: 100%; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Lull · journey lab</h1>
+      <p class="lede">
+        Each journey plays once and ends in silence. Speed compresses the shape of the journey so you can hear all of it quickly;
+        the beat always sounds at its real rate. Click the timeline to jump. Edit the frames in <code>src/core/journeys.ts</code>.
+      </p>
+
+      <section class="panel journeys" id="list"></section>
+
+      <section class="panel controls">
+        <div class="ctl"><span class="cap">Listening on</span>
+          <div class="seg" id="output"><button data-v="speaker">Speaker</button><button data-v="headphones">Headphones</button></div>
+        </div>
+        <div class="ctl"><span class="cap">Speed</span>
+          <div class="seg" id="speed"><button data-v="1">1×</button><button data-v="10">10×</button><button data-v="60">60×</button></div>
+        </div>
+        <div class="ctl"><span class="cap">Bed underneath</span>
+          <select id="bed">
+            <option value="">None</option><option value="brown">Brown</option><option value="pink">Pink</option>
+            <option value="rain">Rain</option><option value="fan">Fan</option><option value="stream">Stream</option>
+          </select>
+        </div>
+        <label class="ctl"><span class="cap">Bed level</span><input type="range" id="bedLevel" min="0" max="1" step="0.01" value="0.4" /></label>
+        <label class="ctl"><span class="cap">Volume</span><input type="range" id="vol" min="0" max="1" step="0.01" value="0.7" /></label>
+        <button class="go" id="go">Begin</button>
+      </section>
+
+      <section class="panel">
+        <canvas id="tl"></canvas>
+        <div class="read">
+          <div><span class="cap">Time</span><b id="rTime">0:00</b></div>
+          <div><span class="cap">Beat</span><b id="rBeat">–</b></div>
+          <div><span class="cap">Band</span><b id="rBand">–</b></div>
+          <div><span class="cap">Pitch</span><b id="rPitch">–</b></div>
+          <div><span class="cap">Level</span><b id="rLevel">–</b></div>
+        </div>
+        <p class="note" id="status">Pick a journey and begin.</p>
+      </section>
+    </main>
+
+    <script type="module">
+      import { JOURNEYS, JourneyVoice, bandOf, durationOf, gongAt, paramsAt, resolveFrames } from '/src/core/journeys.ts';
+      import { buildSound, genNoise } from '/src/core/recipes.ts';
+      import { Gong } from '/src/core/gong.ts';
+
+      const $ = id => document.getElementById(id);
+      const OUTPUT_KEY = 'lull.journey.output';
+      const store = {
+        get: k => { try { return localStorage.getItem(k); } catch { return null; } },
+        set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
+      };
+
+      const state = { journey: JOURNEYS[0], output: store.get(OUTPUT_KEY) === 'headphones' ? 'headphones' : 'speaker', speed: 10 };
+      let run = null; // { ctx, voice, master, marks, next, timer, gongDone, ended }
+      let bed = null, noise = null;
+      const gong = new Gong();
+
+      const fmt = s => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+
+      // ---------- selection ----------
+      const renderList = () => {
+        $('list').innerHTML = '';
+        for (const j of JOURNEYS) {
+          const b = document.createElement('button');
+          b.className = 'j';
+          b.setAttribute('aria-pressed', String(j === state.journey));
+          b.innerHTML = `<b>${j.name}</b><span>${j.sub}</span><small>${durationOf(j) / 60} min · ${j.ending}</small>`;
+          b.onclick = () => { if (run) stop(true); state.journey = j; renderList(); draw(); };
+          $('list').append(b);
+        }
+      };
+      const seg = (id, get, set) => {
+        const el = $(id), sync = () => el.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === String(get()))));
+        el.onclick = e => { const v = e.target.dataset?.v; if (v) { set(v); sync(); } };
+        sync();
+      };
+      seg('output', () => state.output, v => { state.output = v; store.set(OUTPUT_KEY, v); if (run) run.voice.output = v; });
+      seg('speed', () => state.speed, v => { state.speed = Number(v); if (run) run.voice.speed = state.speed; });
+
+      // ---------- playback: render ahead in short chunks, scheduled back to back ----------
+      const CHUNK = 0.5, AHEAD = 1.2;
+
+      const ensureCtx = () => {
+        if (run?.ctx) return run.ctx;
+        const AC = window.AudioContext || window.webkitAudioContext;
+        return new AC();
+      };
+
+      const pump = () => {
+        const { ctx, voice, master, marks } = run;
+        while (!run.ended && run.next < ctx.currentTime + AHEAD) {
+          const len = Math.round(CHUNK * ctx.sampleRate), t0 = voice.t;
+          const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+          voice.render(len, [buf.getChannelData(0), buf.getChannelData(1)]);
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.connect(master);
+          src.start(run.next);
+          marks.push({ at: run.next, t: t0, rate: voice.speed });
+          if (marks.length > 8) marks.shift();
+          const g = gongAt(state.journey);
+          if (!run.gongDone && g != null && t0 <= g && voice.t > g) {
+            run.gongDone = true;
+            const when = run.next + ((g - t0) / (voice.t - t0)) * CHUNK;
+            setTimeout(() => gong.ring(), Math.max(0, (when - ctx.currentTime) * 1000));
+          }
+          run.next += CHUNK;
+          if (voice.done) {
+            run.ended = true;
+            setTimeout(finish, Math.max(0, (run.next - ctx.currentTime) * 1000));
+          }
+        }
+      };
+
+      const begin = () => {
+        gong.prime();
+        const ctx = ensureCtx();
+        ctx.resume();
+        const master = ctx.createGain();
+        master.gain.value = Number($('vol').value);
+        master.connect(ctx.destination);
+        const voice = new JourneyVoice(state.journey, ctx.sampleRate, state.output, state.speed);
+        run = { ctx, voice, master, marks: [], next: ctx.currentTime + 0.1, gongDone: false, ended: false };
+        run.timer = setInterval(pump, 100);
+        pump();
+        setBed();
+        $('go').textContent = 'Stop';
+        $('go').classList.add('stop');
+        $('status').textContent = state.output === 'headphones'
+          ? 'Binaural: each ear hears its own tone, and the beat forms between them. Use headphones.'
+          : 'Monaural: both tones in both ears, so the beat is in the air. Works on any speaker.';
+        requestAnimationFrame(tick);
+      };
+
+      /** The journey reached its end on its own: the bed keeps going (that's the dissolve). */
+      const finish = () => {
+        if (!run) return;
+        clearInterval(run.timer);
+        $('go').textContent = bed ? 'Stop bed' : 'Begin';
+        $('status').textContent = state.journey.ending === 'dissolve'
+          ? 'Dissolved. Whatever bed is on carries on alone.'
+          : 'Returned. The journey is over.';
+        if (!bed) teardown();
+      };
+
+      /** Stopped by hand: never a cut, always a short fade. */
+      const stop = (now = false) => {
+        if (!run) return;
+        const { ctx, master } = run, fade = now ? 0.05 : 4;
+        clearInterval(run.timer);
+        run.ended = true;
+        master.gain.setTargetAtTime(0, ctx.currentTime, fade / 4);
+        if (bed) bed.g.gain.setTargetAtTime(0, ctx.currentTime, fade / 4);
+        const r = run;
+        setTimeout(() => { if (run === r) teardown(); }, fade * 1000 + 100);
+        $('go').textContent = 'Begin';
+        $('go').classList.remove('stop');
+        $('status').textContent = now ? 'Stopped.' : 'Fading out…';
+      };
+
+      const teardown = () => {
+        if (!run) return;
+        dropBed();
+        run.ctx.close();
+        run = null;
+        $('go').textContent = 'Begin';
+        $('go').classList.remove('stop');
+        draw();
+      };
+
+      $('go').onclick = () => (run ? stop() : begin());
+      $('vol').oninput = () => run && run.master.gain.setTargetAtTime(Number($('vol').value), run.ctx.currentTime, 0.05);
+
+      // ---------- bed ----------
+      const dropBed = () => {
+        if (!bed) return;
+        for (const s of [...bed.srcs, ...bed.extra]) try { s.stop(); } catch {}
+        bed.g.disconnect();
+        bed = null;
+      };
+      const setBed = () => {
+        dropBed();
+        const id = $('bed').value;
+        if (!run || !id) return;
+        noise ||= genNoise(run.ctx);
+        bed = buildSound(run.ctx, id, noise, 8, run.ctx.destination);
+        if (bed) bed.g.gain.setTargetAtTime(bed.base * Number($('bedLevel').value), run.ctx.currentTime, 0.5);
+      };
+      $('bed').onchange = setBed;
+      $('bedLevel').oninput = () => bed && bed.g.gain.setTargetAtTime(bed.base * Number($('bedLevel').value), run.ctx.currentTime, 0.05);
+
+      // ---------- timeline ----------
+      const BANDS = [['delta', 1.5, 4], ['theta', 4, 8], ['alpha', 8, 13], ['beta', 13, 20]];
+      const LO = 1.5, HI = 20;
+      const heard = () => {
+        if (!run || !run.marks.length) return null;
+        const now = run.ctx.currentTime;
+        let m = run.marks[0];
+        for (const k of run.marks) if (k.at <= now) m = k;
+        return Math.min(durationOf(state.journey), Math.max(0, m.t + (now - m.at) * m.rate));
+      };
+
+      const draw = () => {
+        const c = $('tl'), dpr = devicePixelRatio || 1, W = c.clientWidth, H = c.clientHeight;
+        c.width = W * dpr; c.height = H * dpr;
+        const g = c.getContext('2d');
+        g.scale(dpr, dpr);
+        const j = state.journey, frames = resolveFrames(j), D = durationOf(j);
+        const padL = 46, padR = 10, padT = 10, padB = 24, w = W - padL - padR, h = H - padT - padB;
+        const x = t => padL + (t / D) * w, y = b => padT + h - (Math.log(b / LO) / Math.log(HI / LO)) * h;
+        g.font = '11px Newsreader Variable, Georgia, serif';
+        BANDS.forEach(([name, a, b], i) => {
+          g.fillStyle = i % 2 ? 'rgba(205,216,234,.035)' : 'rgba(205,216,234,.07)';
+          g.fillRect(padL, y(b), w, y(a) - y(b));
+          g.fillStyle = '#7d8494';
+          g.fillText(name, 4, (y(a) + y(b)) / 2 + 4);
+        });
+        // Level, as a soft area along the bottom.
+        g.beginPath(); g.moveTo(x(0), padT + h);
+        for (let i = 0; i <= 400; i++) { const t = (i / 400) * D; g.lineTo(x(t), padT + h - paramsAt(frames, t).level * h * 0.35); }
+        g.lineTo(x(D), padT + h); g.closePath();
+        g.fillStyle = 'rgba(205,216,234,.12)'; g.fill();
+        // Beat.
+        g.beginPath();
+        for (let i = 0; i <= 600; i++) { const t = (i / 600) * D, b = paramsAt(frames, t).beat; i ? g.lineTo(x(t), y(b)) : g.moveTo(x(t), y(b)); }
+        g.strokeStyle = '#cdd8ea'; g.lineWidth = 2; g.stroke();
+        // Frames and gong.
+        g.fillStyle = '#cdd8ea';
+        for (const f of frames) { g.beginPath(); g.arc(x(f.at * 60), y(f.beat), 3, 0, 7); g.fill(); }
+        const ga = gongAt(j);
+        if (ga != null) { g.fillStyle = '#969dab'; g.fillText('gong', x(ga) - 12, padT + 12); g.fillRect(x(ga), padT + 16, 1, h - 16); }
+        // Minute ticks.
+        g.fillStyle = '#7d8494';
+        const step = D / 60 > 20 ? 10 : 5;
+        for (let m = 0; m <= D / 60; m += step) g.fillText(`${m}m`, x(m * 60) - 6, H - 6);
+        // Playhead.
+        const t = heard();
+        if (t != null) { g.fillStyle = '#f1f3f7'; g.fillRect(x(t) - 1, padT, 2, h); }
+        // Readout.
+        const p = paramsAt(frames, t ?? 0);
+        $('rTime').textContent = `${fmt(t ?? 0)} / ${fmt(D)}`;
+        $('rBeat').textContent = `${p.beat.toFixed(1)} Hz`;
+        $('rBand').textContent = bandOf(p.beat);
+        $('rPitch').textContent = `${p.pitch.toFixed(0)} Hz`;
+        $('rLevel').textContent = p.level.toFixed(2);
+      };
+      const tick = () => { draw(); if (run) requestAnimationFrame(tick); };
+
+      $('tl').onclick = e => {
+        if (!run || run.ended) return;
+        const r = e.currentTarget.getBoundingClientRect(), D = durationOf(state.journey);
+        const t = Math.max(0, Math.min(D, ((e.clientX - r.left - 46) / (r.width - 56)) * D));
+        run.voice.t = t;
+        run.gongDone = gongAt(state.journey) != null && t > gongAt(state.journey);
+      };
+
+      addEventListener('resize', draw);
+      renderList();
+      draw();
+    </script>
+  </body>
+</html>
