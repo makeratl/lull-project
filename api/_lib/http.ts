@@ -1,8 +1,11 @@
 /**
  * Shared helpers for Lull's Vercel functions (web-standard Request/Response handlers).
- * Sessions are Bearer tokens from the browser's supabase-js session, checked with the service client.
+ * Sessions are Bearer JWTs from Neon Auth (the browser's session), verified against the branch's JWKS.
+ * Database work here runs as the owner (`sql`), which bypasses RLS: the browser's own queries go through
+ * the Neon Data API with the member's JWT, where RLS applies.
  */
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { neon } from '@neondatabase/serverless';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { ZodType } from 'zod';
 
 export interface Profile {
@@ -46,23 +49,63 @@ export const parse = async <T,>(req: Request, schema: ZodType<T>): Promise<T> =>
   return r.data;
 };
 
-let adminClient: SupabaseClient | null = null;
-/** Service-role client: bypasses RLS. Server only. */
-export const supabaseAdmin = () => {
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set');
-  return (adminClient ||= createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } }));
+const env = (k: string) => {
+  const v = process.env[k];
+  if (!v) throw new Error(`${k} is not set`);
+  return v;
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Row = Record<string, any>;
+
+// Same shapes PostgREST returned on Supabase: timestamps as ISO strings (the driver gives Date objects,
+// which e.g. shared/tree.ts's localeCompare can't sort).
+const plain = (rows: Row[]) =>
+  rows.map(r => {
+    for (const k in r) if (r[k] instanceof Date) r[k] = (r[k] as Date).toISOString();
+    return r;
+  });
+
+let owner: ReturnType<typeof neon> | null = null;
+/** Tagged-template SQL as the database owner: bypasses RLS. Server only. */
+export const sql = async (strings: TemplateStringsArray, ...values: unknown[]): Promise<Row[]> => {
+  owner ??= neon(env('DATABASE_URL'));
+  return plain((await owner(strings, ...values)) as Row[]);
+};
+
+/** Neon Auth for this branch (NEON_AUTH_BASE_URL, e.g. https://ep-….neonauth…/neondb/auth). */
+export const authBase = () => env('NEON_AUTH_BASE_URL').replace(/\/$/, '');
+
+/** Call Neon Auth from the server. It refuses requests without an Origin, so send the app's. */
+export const authFetch = async (req: Request, path: string, body: unknown) => {
+  const r = await fetch(`${authBase()}/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: appOrigin(req) },
+    body: JSON.stringify(body),
+  });
+  const data = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, data: data as Row, cookies: r.headers.getSetCookie() };
+};
+
+let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+/** The user id behind a Neon Auth JWT, or null if it isn't valid (bad signature, expired). */
+export const verifyToken = async (token: string) => {
+  jwks ??= createRemoteJWKSet(new URL(`${authBase()}/.well-known/jwks.json`));
+  try {
+    const { payload } = await jwtVerify(token, jwks);
+    return typeof payload.sub === 'string' ? { id: payload.sub, email: String(payload.email ?? '') } : null;
+  } catch {
+    return null;
+  }
 };
 
 /** The signed-in, active member behind the Bearer token. */
 export const requireMember = async (req: Request) => {
   const token = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
   if (!token) throw new HttpError(401, 'unauthenticated');
-  const admin = supabaseAdmin();
-  const { data: { user } } = await admin.auth.getUser(token);
+  const user = await verifyToken(token);
   if (!user) throw new HttpError(401, 'unauthenticated');
-  const { data: profile } = await admin.from('profiles').select('*').eq('id', user.id).single<Profile>();
+  const [profile] = (await sql`select * from profiles where id = ${user.id}`) as Profile[];
   if (!profile) throw new HttpError(401, 'unauthenticated');
   if (profile.status !== 'active') throw new HttpError(403, 'suspended');
   return { user, profile };
@@ -79,13 +122,12 @@ export const clientIp = (req: Request) =>
 
 /** IP brute-force guard (default 10 attempts per 10 minutes). */
 export const guardIp = async (req: Request, action: string, max = 10, windowSec = 600) => {
-  const { data, error } = await supabaseAdmin().rpc('ip_attempt', { p_ip: clientIp(req), p_action: action, p_max: max, p_window_sec: windowSec });
-  if (error) throw error;
-  if (data === false) throw new HttpError(429, 'rate_limited');
+  const [{ allowed }] = await sql`select public.ip_attempt(${clientIp(req)}, ${action}, ${max}::int, ${windowSec}::int) as allowed`;
+  if (allowed === false) throw new HttpError(429, 'rate_limited');
 };
 
 export const audit = async (actorId: string, action: string, target: string | null, payload: Record<string, unknown> = {}) => {
-  await supabaseAdmin().from('admin_audit_log').insert({ actor_id: actorId, action, target_user_id: target, payload });
+  await sql`insert into admin_audit_log (actor_id, action, target_user_id, payload) values (${actorId}, ${action}, ${target}, ${JSON.stringify(payload)}::jsonb)`;
 };
 
 export const appOrigin = (req: Request) => process.env.APP_ORIGIN || new URL(req.url).origin;

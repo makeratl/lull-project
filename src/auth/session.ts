@@ -5,7 +5,7 @@
  * so it can never lock anyone out at 2am. When online, the session is re-checked in the background,
  * and the user is signed out only on a definite answer (revoked, suspended, deleted), never on a network error.
  */
-import { createClient, isAuthRetryableFetchError } from '@supabase/supabase-js';
+import { createClient } from '@neon/neon-js/supabase';
 import type { Remote, Session } from '../core/practice';
 
 export interface Me {
@@ -17,9 +17,27 @@ export interface Me {
 
 const ME_KEY = 'lull.me';
 
-export const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'lull.auth' },
+/**
+ * Neon: auth goes through Lull's own /api/auth (see api/auth.ts) so the session cookie is first-party,
+ * which Safari keeps. Queries go to the branch's Data API with the session's JWT, where RLS applies.
+ * The Data API lives beside Neon Auth on the same endpoint, so its URL is derived from VITE_NEON_AUTH_URL
+ * (which the Vercel Neon integration sets per branch, previews included).
+ */
+const authUrl: string = import.meta.env.VITE_NEON_AUTH_URL;
+const dataApiUrl = authUrl.replace(/^(https:\/\/[^.]+)\.neonauth\.(.+)\/([^/]+)\/auth\/?$/, '$1.apirest.$2/$3/rest/v1');
+
+export const supabase = createClient({
+  auth: { url: `${typeof location === 'undefined' ? '' : location.origin}/api/auth` },
+  dataApi: { url: dataApiUrl },
 });
+
+/** A failure to reach the server (offline, timeout), as opposed to a definite "no". */
+const isNetworkError = (e: unknown) => {
+  const err = e as { name?: string; status?: number; message?: string } | null;
+  if (!err) return false;
+  return err.name === 'AuthRetryableFetchError' || err.name === 'TypeError' || err.status === 0 || err.status === 502
+    || /fetch|network|NETWORK_/i.test(`${err.name ?? ''} ${err.message ?? ''}`);
+};
 
 export const cachedMe = (): Me | null => {
   try {
@@ -52,7 +70,7 @@ export const loadProfile = async (userId: string): Promise<Me> => {
 export const signIn = async (email: string, password: string): Promise<Me> => {
   const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
   if (error || !data.user) {
-    if (error && isAuthRetryableFetchError(error)) throw new AuthError('Can’t reach Lull right now. Check your connection.');
+    if (error && isNetworkError(error)) throw new AuthError('Can’t reach Lull right now. Check your connection.');
     throw new AuthError('That email and password don’t match.');
   }
   const me = await loadProfile(data.user.id);
@@ -60,26 +78,42 @@ export const signIn = async (email: string, password: string): Promise<Me> => {
   return me;
 };
 
-/**
- * Change the password after confirming the current one. The check signs in on a throwaway client,
- * so the app's own session is never touched by a wrong guess.
- */
-export const changePassword = async (email: string, current: string, next: string) => {
+/** Change the password; Neon Auth checks the current one. Other devices stay signed in. */
+export const changePassword = async (_email: string, current: string, next: string) => {
   if (next.length < 10) throw new AuthError('Use at least 10 characters.');
   if (next === current) throw new AuthError('Choose a password different from the current one.');
-  const probe = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-  });
-  const { error: checkErr } = await probe.auth.signInWithPassword({ email, password: current });
-  if (checkErr) {
-    if (isAuthRetryableFetchError(checkErr)) throw new AuthError('Can’t reach Lull right now. Check your connection.');
-    throw new AuthError('Your current password isn’t right.');
+  let res: Response;
+  try {
+    res = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: current, newPassword: next, revokeOtherSessions: false }),
+    });
+  } catch {
+    throw new AuthError('Can’t reach Lull right now. Check your connection.');
   }
-  await probe.auth.signOut({ scope: 'local' });
-  const { error } = await supabase.auth.updateUser({ password: next });
-  if (error) {
-    if (isAuthRetryableFetchError(error)) throw new AuthError('Can’t reach Lull right now. Check your connection.');
-    throw new AuthError('That password wasn’t accepted. Try a longer one.');
+  if (res.ok) return;
+  const body = (await res.json().catch(() => ({}))) as { code?: string; message?: string };
+  if (/INVALID_PASSWORD|invalid password/i.test(`${body.code} ${body.message}`)) throw new AuthError('Your current password isn’t right.');
+  if (res.status >= 500) throw new AuthError('Can’t reach Lull right now. Check your connection.');
+  throw new AuthError('That password wasn’t accepted. Try a longer one.');
+};
+
+/** Set a new password from a reset link (/reset?token=…), then sign in with it. */
+export const resetPassword = async (token: string, password: string) => {
+  const res = await fetch('/api/auth/reset-password', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, newPassword: password }),
+  }).catch(() => null);
+  if (!res) throw new AuthError('Can’t reach Lull right now. Check your connection.');
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { code?: string; message?: string };
+    if (/PASSWORD_TOO|password/i.test(`${body.code} ${body.message}`) && !/token/i.test(`${body.code} ${body.message}`))
+      throw new AuthError('That password wasn’t accepted. Try a longer one.');
+    throw new AuthError('This reset link has expired or was already used. Ask for a new one.');
   }
 };
 
@@ -101,7 +135,7 @@ export const verify = async (): Promise<Me | null | undefined> => {
     if (!session) return null;
     const { data, error } = await supabase.auth.getUser();
     if (error) {
-      if (isAuthRetryableFetchError(error) || !error.status || error.status >= 500) return undefined;
+      if (isNetworkError(error) || !error.status || error.status >= 500) return undefined;
       return null;
     }
     return await loadProfile(data.user.id);

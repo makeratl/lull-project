@@ -1,9 +1,9 @@
 import webpush from 'web-push';
-import { handle, HttpError, ok, supabaseAdmin } from './_lib/http.js';
+import { handle, HttpError, ok, sql } from './_lib/http.js';
 import { dueSlots, nudgeMessage, practiceToday, type NudgeSettings, type Practice } from '../shared/nudge.js';
 
 /**
- * Send the nudges that are due. Called every 15 minutes by pg_cron (see the nudges migration) with a shared
+ * Send the nudges that are due. Called every 15 minutes by .github/workflows/nudge.yml with a shared
  * secret; nobody else can trigger it. Each slot is claimed in nudge_sent before sending, so overlapping runs
  * never send twice, and a nudge is skipped once the person has met today's goal.
  */
@@ -12,20 +12,20 @@ export const POST = handle(async req => {
   if (!secret || req.headers.get('x-nudge-secret') !== secret) throw new HttpError(401, 'unauthenticated');
   webpush.setVapidDetails(process.env.VAPID_SUBJECT!, process.env.VAPID_PUBLIC_KEY!, process.env.VAPID_PRIVATE_KEY!);
 
-  const admin = supabaseAdmin(), now = new Date();
-  const { data: settings, error } = await admin.from('nudge_settings').select('user_id, enabled, times, days, tz, goal').eq('enabled', true);
-  if (error) throw error;
+  const now = new Date();
+  const settings = await sql`select user_id, enabled, times, days, tz, goal from nudge_settings where enabled`;
   if (!settings.length) return ok({ due: 0 });
-  const ids = settings.map(s => s.user_id);
+  const ids = settings.map(s => s.user_id as string);
   const since = new Date(now.getTime() - 2 * 86400_000).toISOString().slice(0, 10);
-  const [active, handled, sessions, subs] = await Promise.all([
-    admin.from('profiles').select('id').in('id', ids).eq('status', 'active'),
-    admin.from('nudge_sent').select('user_id, local_date, slot').in('user_id', ids).gte('local_date', since),
-    admin.from('relax_sessions').select('user_id, started_at, seconds').in('user_id', ids).gte('started_at', new Date(now.getTime() - 400 * 86400_000).toISOString()),
-    admin.from('push_subscriptions').select('id, user_id, endpoint, p256dh, auth').in('user_id', ids),
+  const [active, handledRows, sessions, subs] = await Promise.all([
+    sql`select id from profiles where id = any(${ids}::uuid[]) and status = 'active'`,
+    // local_date as text: the slot keys below compare it to 'YYYY-MM-DD' strings.
+    sql`select user_id, local_date::text as local_date, slot from nudge_sent where user_id = any(${ids}::uuid[]) and local_date >= ${since}::date`,
+    sql`select user_id, started_at, seconds from relax_sessions where user_id = any(${ids}::uuid[]) and started_at >= ${new Date(now.getTime() - 400 * 86400_000).toISOString()}`,
+    sql`select id, user_id, endpoint, p256dh, auth from push_subscriptions where user_id = any(${ids}::uuid[])`,
   ]);
-  for (const r of [active, handled, sessions, subs]) if (r.error) throw r.error;
-  const activeIds = new Set(active.data!.map(p => p.id));
+  const handled = { data: handledRows };
+  const activeIds = new Set(active.map(p => p.id));
 
   const counts = { sent: 0, skipped_goal: 0, no_device: 0, failed: 0 };
   for (const s of settings as NudgeSettings[]) {
@@ -33,19 +33,17 @@ export const POST = handle(async req => {
     const done = new Set(handled.data!.filter(h => h.user_id === s.user_id).map(h => `${h.local_date}|${h.slot}`));
     for (const due of dueSlots(s, now, done)) {
       // Claim the slot first: a second run at the same moment finds it taken and moves on.
-      const { data: claimed } = await admin
-        .from('nudge_sent')
-        .upsert({ user_id: s.user_id, local_date: due.date, slot: due.slot, outcome: 'sent' }, { onConflict: 'user_id,local_date,slot', ignoreDuplicates: true })
-        .select('slot');
-      if (!claimed?.length) continue;
+      const claimed = await sql`insert into nudge_sent (user_id, local_date, slot, outcome) values (${s.user_id}, ${due.date}::date, ${due.slot}, 'sent')
+        on conflict (user_id, local_date, slot) do nothing returning slot`;
+      if (!claimed.length) continue;
       const mark = async (outcome: keyof typeof counts) => {
         counts[outcome]++;
-        if (outcome !== 'sent') await admin.from('nudge_sent').update({ outcome }).match({ user_id: s.user_id, local_date: due.date, slot: due.slot });
+        if (outcome !== 'sent') await sql`update nudge_sent set outcome = ${outcome} where user_id = ${s.user_id} and local_date = ${due.date}::date and slot = ${due.slot}`;
       };
 
-      const today = practiceToday((sessions.data as (Practice & { user_id: string })[]).filter(x => x.user_id === s.user_id), due.date, s.tz);
+      const today = practiceToday((sessions as (Practice & { user_id: string })[]).filter(x => x.user_id === s.user_id), due.date, s.tz);
       if (today.minutes >= s.goal) { await mark('skipped_goal'); continue; }
-      const devices = subs.data!.filter(d => d.user_id === s.user_id);
+      const devices = subs.filter(d => d.user_id === s.user_id);
       if (!devices.length) { await mark('no_device'); continue; }
 
       const payload = JSON.stringify(nudgeMessage({ ...today, goal: s.goal, last: due.last }));
@@ -57,7 +55,7 @@ export const POST = handle(async req => {
         } catch (e) {
           // The phone unsubscribed or the app was removed: forget that device.
           const code = (e as { statusCode?: number }).statusCode;
-          if (code === 404 || code === 410) await admin.from('push_subscriptions').delete().eq('id', d.id);
+          if (code === 404 || code === 410) await sql`delete from push_subscriptions where id = ${d.id}`;
         }
       }
       await mark(delivered ? 'sent' : 'failed');

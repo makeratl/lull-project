@@ -9,7 +9,7 @@ A private, invite-only PWA for falling asleep:
 Built from the design handoff in `reference/` (the spec is `reference/README.md`).
 
 - **App:** Vite + Preact + TypeScript. Sound is generated on the device with Web Audio, except for recordings: Ocean's waves, Shore, Brook and Haunt's clips (see below).
-- **Accounts:** Supabase Auth with invite codes (the wellofwyrd pattern), plus three Vercel functions in `api/`. Only admins create invites.
+- **Accounts:** Neon Auth (email + password) with invite codes, served through Lull's own `/api/auth` (so the session cookie is first-party and iPhones keep it), plus Vercel functions in `api/`. Data is Neon Postgres: the browser queries it through the Neon Data API with the member's JWT, so RLS applies.
 - **Offline-first:** once signed in, the app opens and plays with no network. Sessions are re-checked only when online and **never while sound is playing**.
 - **Private by default:** sounds, mixes and settings stay on the device. The one thing saved to the account is the breathing practice log (pattern, time, length, rounds), readable only by its owner.
 
@@ -20,17 +20,16 @@ Built from the design handoff in `reference/` (the spec is `reference/README.md`
 | `src/core/` | Framework-free engine: the `lull-core.js` port (`lull.ts`, `engine.ts`, `recipes.ts`), the view model, and lock-screen safe mode (`safeMode.ts`) |
 | `src/ui/` | Screens, sheet, gestures, styles (design tokens are in `styles.css`) |
 | `src/auth/` | Sign in, join, reset, admin, session (`session.ts`) |
-| `api/` | `invite.ts` (validate), `signup.ts` (atomic redeem), `admin.ts` (invites, members, reset links) |
+| `api/` | `auth.ts` (Neon Auth proxy), `invite.ts` (validate), `signup.ts` (atomic redeem), `forgot.ts` (email reset link), `admin.ts` (invites, members, reset links), `share.ts`, `nudge.ts` (sends due nudges; run every 15 min by `.github/workflows/nudge.yml`) |
 | `shared/codes.ts` | Invite code format (`XXXX-XXXX`, no 0/O/1/I) |
-| `supabase/migrations/` | Schema, RLS and invite functions |
+| `db/neon-schema.sql` | Schema, RLS and invite functions (built from `supabase/migrations/`, kept as history) |
 | `scripts/` | `bootstrap-admin.ts` (first admin), `brand.ts` (icons, lockups, social card), `haunt.sh` (Haunt's clips), `freesound.ts` + `recordings.ts` (recorded sounds) |
 
 ## Local development
 
 ```bash
 npm install
-supabase start          # Lull's own stack on ports 554xx (doesn't clash with wellofwyrd)
-cp .env.example .env.local   # fill with the keys `supabase start` prints
+cp .env.example .env.local   # point it at a Neon dev branch (Neon Auth + Data API enabled)
 npm run bootstrap       # creates ADMIN_EMAIL as admin, prints a one-time password
 npm run dev             # http://localhost:5190; /api runs in-process (no `vercel dev` needed)
 npm test                # vitest: timer/fade copy, breathing, mixes, safe-mode maths, WAV, codes
