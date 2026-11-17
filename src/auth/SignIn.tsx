@@ -33,6 +33,13 @@ export function AuthPage({ title, lede, children }: { title: string; lede?: stri
   );
 }
 
+/**
+ * Lull moved from Supabase to Neon on 17 Nov 2026. Passwords couldn't move with it, so everyone sets a new one
+ * once. Until this date the sign-in screen says so; remove the notice (and this constant) after it.
+ */
+const MOVE_NOTICE_UNTIL = new Date('2027-01-01');
+const showMoveNotice = () => Date.now() < MOVE_NOTICE_UNTIL.getTime();
+
 export function SignIn({ onDone }: { onDone: (me: Me) => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -76,7 +83,11 @@ export function SignIn({ onDone }: { onDone: (me: Me) => void }) {
     try {
       onDone(await signIn(email, password));
     } catch (err) {
-      setError(err instanceof AuthError ? err.message : 'Something went wrong. Try again.');
+      const msg = err instanceof AuthError ? err.message : 'Something went wrong. Try again.';
+      // An old password is the likeliest reason right now: say so, and point at the fix.
+      setError(showMoveNotice() && /don’t match/.test(msg)
+        ? 'That password didn’t work. If it’s from before Lull moved, it won’t any more: tap “Forgot your password?” below to set a new one.'
+        : msg);
     } finally {
       setBusy(false);
     }
@@ -84,6 +95,13 @@ export function SignIn({ onDone }: { onDone: (me: Me) => void }) {
 
   return (
     <AuthPage title="Welcome back." lede="Sign in once on this device. After that, Lull works offline.">
+      {showMoveNotice() && (
+        <div class="card" role="note">
+          <strong>Lull has moved to a new home.</strong>
+          <span class="muted">Your account and practice log came with it, but passwords couldn’t. Set a new one once: tap “Forgot your password?” and we’ll email you a link.</span>
+          <button type="button" class="link" onClick={() => { setForgot('open'); setError(''); }}>Set a new password</button>
+        </div>
+      )}
       <form class="form" onSubmit={submit}>
         <Field label="Email" type="email" autocomplete="email" value={email} onInput={setEmail} />
         <Field label="Password" type="password" autocomplete="current-password" value={password} onInput={setPassword} />
