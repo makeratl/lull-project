@@ -1,0 +1,21 @@
+# Daily nudges: every 15 minutes, ask /api/nudge to send what's due.
+# (Supabase ran this with pg_cron; Vercel's Hobby plan only schedules once a day, so GitHub does it.)
+# Needs two repository secrets: NUDGE_URL (https://lull.makeratl.com/api/nudge) and NUDGE_SECRET
+# (the same value as the NUDGE_SECRET environment variable on Vercel).
+name: nudge
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+jobs:
+  nudge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Send due nudges
+        env:
+          NUDGE_URL: ${{ secrets.NUDGE_URL }}
+          NUDGE_SECRET: ${{ secrets.NUDGE_SECRET }}
+        run: |
+          if [ -z "$NUDGE_URL" ] || [ -z "$NUDGE_SECRET" ]; then echo "NUDGE_URL / NUDGE_SECRET not set; skipping"; exit 0; fi
+          curl -sS --fail-with-body --max-time 60 -X POST -H "content-type: application/json" -H "x-nudge-secret: $NUDGE_SECRET" -d '{}' "$NUDGE_URL"

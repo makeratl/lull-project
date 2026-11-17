@@ -1,24 +1,23 @@
 import { z } from 'zod';
-import { appOrigin, audit, handle, HttpError, ok, parse, requireAdmin, supabaseAdmin, type Profile } from './_lib/http.js';
+import { randomBytes } from 'node:crypto';
+import { appOrigin, audit, handle, HttpError, ok, parse, requireAdmin, sql, type Profile } from './_lib/http.js';
 import { normalizeCode } from '../shared/codes.js';
 
 /** Invitations and members, for the admin screen. */
 export const GET = handle(async req => {
   await requireAdmin(req);
-  const admin = supabaseAdmin();
   const [invites, users] = await Promise.all([
     // Revoked invites are dead ends; the screen never shows them.
-    admin.from('invitations').select('id, code, for_whom, status, created_at, redeemed_at, redeemed_by, created_by, expires_at, max_uses, uses').neq('status', 'revoked').order('created_at', { ascending: false }).limit(200),
-    admin.from('profiles').select('*').order('joined_at'),
+    sql`select id, code, for_whom, status, created_at, redeemed_at, redeemed_by, created_by, expires_at, max_uses, uses
+        from invitations where status <> 'revoked' order by created_at desc limit 200`,
+    sql`select * from profiles order by joined_at`,
   ]);
-  if (invites.error) throw invites.error;
-  if (users.error) throw users.error;
-  const names = new Map((users.data as Profile[]).map(u => [u.id, u.name]));
+  const names = new Map((users as Profile[]).map(u => [u.id, u.name]));
   // Who came in through each group invite, in the order they joined.
   const joined = new Map<string, string[]>();
-  for (const u of users.data as Profile[]) if (u.invitation_id) joined.set(u.invitation_id, [...(joined.get(u.invitation_id) ?? []), u.name]);
+  for (const u of users as Profile[]) if (u.invitation_id) joined.set(u.invitation_id, [...(joined.get(u.invitation_id) ?? []), u.name]);
   return ok({
-    invites: invites.data
+    invites: invites
       // An open invite past its date is as good as gone.
       .filter(i => !(i.status === 'open' && i.expires_at && i.expires_at < new Date().toISOString()))
       .map(({ id, ...i }) => ({
@@ -27,7 +26,7 @@ export const GET = handle(async req => {
         redeemed_by_name: i.redeemed_by ? names.get(i.redeemed_by) ?? null : null,
         created_by_name: i.created_by ? names.get(i.created_by) ?? null : null,
       })),
-    users: users.data,
+    users,
   });
 });
 
@@ -44,8 +43,8 @@ const action = z.discriminatedUnion('action', [
 
 /** Admins act on members only: another admin can't be paused or have a reset link made (nor can you). */
 const requireMemberTarget = async (id: string) => {
-  const { data, error } = await supabaseAdmin().from('profiles').select('email, role').eq('id', id).single<{ email: string; role: string }>();
-  if (error || !data) throw new HttpError(404, 'not_found');
+  const [data] = (await sql`select email, role from profiles where id = ${id}`) as { email: string; role: string }[];
+  if (!data) throw new HttpError(404, 'not_found');
   if (data.role === 'admin') throw new HttpError(403, 'target_admin');
   return data;
 };
@@ -53,19 +52,15 @@ const requireMemberTarget = async (id: string) => {
 export const POST = handle(async req => {
   const { profile: me } = await requireAdmin(req);
   const body = await parse(req, action);
-  const admin = supabaseAdmin();
-
   switch (body.action) {
     case 'invite': {
-      const { data, error } = await admin.rpc('create_invitation', { p_by: me.id, p_for: body.forWhom, p_max_uses: body.maxUses });
-      if (error) throw error;
-      await audit(me.id, 'invite_create', null, { code: (data as { code: string }).code, max_uses: body.maxUses });
+      const [data] = await sql`select * from public.create_invitation(${me.id}::uuid, ${body.forWhom}, ${body.maxUses}::int)`;
+      await audit(me.id, 'invite_create', null, { code: data.code, max_uses: body.maxUses });
       return ok({ invite: data }, 201);
     }
     case 'revoke': {
       const code = normalizeCode(body.code);
-      const { data, error } = await admin.from('invitations').update({ status: 'revoked' }).eq('code', code).eq('status', 'open').select('code');
-      if (error) throw error;
+      const data = await sql`update invitations set status = 'revoked' where code = ${code} and status = 'open' returning code`;
       if (!data.length) throw new HttpError(409, 'not_open');
       await audit(me.id, 'invite_revoke', null, { code });
       return ok({ revoked: code });
@@ -75,30 +70,29 @@ export const POST = handle(async req => {
       if (body.id === me.id) throw new HttpError(400, 'self');
       await requireMemberTarget(body.id);
       const suspend = body.action === 'suspend';
-      const { error } = await admin
-        .from('profiles')
-        .update({ status: suspend ? 'suspended' : 'active', suspended_at: suspend ? new Date().toISOString() : null })
-        .eq('id', body.id);
-      if (error) throw error;
-      // Banning also stops their refresh tokens, so the app signs them out on its next check.
-      const { error: banErr } = await admin.auth.admin.updateUserById(body.id, { ban_duration: suspend ? '876000h' : 'none' });
-      if (banErr) throw banErr;
+      await sql`update profiles set status = ${suspend ? 'suspended' : 'active'}, suspended_at = ${suspend ? new Date().toISOString() : null}
+        where id = ${body.id}`;
+      // Ban in Neon Auth and end their sessions, so the app signs them out on its next check.
+      await sql`update neon_auth."user" set banned = ${suspend} where id = ${body.id}`;
+      if (suspend) await sql`delete from neon_auth.session where "userId" = ${body.id}`;
       await audit(me.id, body.action, body.id);
       return ok({ id: body.id, status: suspend ? 'suspended' : 'active' });
     }
     case 'sharing': {
       await requireMemberTarget(body.id);
-      const { error } = await admin.from('profiles').update({ can_share: body.on }).eq('id', body.id);
-      if (error) throw error;
+      await sql`update profiles set can_share = ${body.on} where id = ${body.id}`;
       await audit(me.id, body.on ? 'sharing_on' : 'sharing_off', body.id);
       return ok({ id: body.id, canShare: body.on });
     }
     case 'reset_link': {
-      const user = await requireMemberTarget(body.id);
-      const { data, error: linkErr } = await admin.auth.admin.generateLink({ type: 'recovery', email: user.email });
-      if (linkErr) throw linkErr;
+      await requireMemberTarget(body.id);   // a member, not an admin
+      // A one-time Neon Auth reset token, stored the way Neon Auth (Better Auth) stores its own:
+      // identifier `reset-password:<token>`, value = the user id. It works once and lasts an hour.
+      const token = randomBytes(18).toString('base64url');
+      await sql`insert into neon_auth.verification (id, identifier, value, "expiresAt", "createdAt", "updatedAt")
+        values (gen_random_uuid(), ${'reset-password:' + token}, ${body.id}, now() + interval '1 hour', now(), now())`;
       await audit(me.id, 'reset_link', body.id);
-      return ok({ link: `${appOrigin(req)}/reset?token_hash=${encodeURIComponent(data.properties.hashed_token)}` });
+      return ok({ link: `${appOrigin(req)}/reset?token=${encodeURIComponent(token)}` });
     }
   }
 });

@@ -15,7 +15,9 @@ const devApi = (): Plugin => ({
     server.middlewares.use(async (req, res, next) => {
       const url = new URL(req.url ?? '/', 'http://localhost');
       if (!url.pathname.startsWith('/api/')) return next();
-      const file = resolve('api', `${url.pathname.slice(5)}.ts`);
+      // /api/auth/<anything> is one function (the Neon Auth proxy), as the vercel.json rewrite makes it.
+      const name = url.pathname.startsWith('/api/auth/') ? 'auth' : url.pathname.slice(5);
+      const file = resolve('api', `${name}.ts`);
       if (url.pathname.includes('_lib') || !existsSync(file)) {
         res.statusCode = 404;
         return res.end();

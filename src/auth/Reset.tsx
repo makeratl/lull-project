@@ -1,13 +1,18 @@
 import { useState } from 'preact/hooks';
 import { AuthPage, Field } from './SignIn';
-import { loadProfile, saveMe, supabase, type Me } from './session';
+import { loadProfile, resetPassword, saveMe, signIn, supabase, type Me } from './session';
 
-/** Reset a password from an admin-generated link: /reset?token_hash=… (no email involved). */
+/**
+ * Set a new password from a reset link: /reset?token=… — emailed by "Forgot your password?" or made by an admin.
+ * (Links from before the move to Neon used ?token_hash=; those no longer work.)
+ */
 export function Reset({ onDone }: { onDone: (me: Me) => void }) {
-  const tokenHash = new URLSearchParams(location.search).get('token_hash') ?? '';
+  const params = new URLSearchParams(location.search);
+  const token = params.get('token') ?? '';
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(tokenHash ? '' : 'This reset link is incomplete. Ask for a new one.');
+  const [error, setError] = useState(token ? '' : params.get('error') ? 'This reset link has expired or was already used. Ask for a new one.' : 'This reset link is incomplete. Ask for a new one.');
 
   const submit = async (e: Event) => {
     e.preventDefault();
@@ -15,11 +20,13 @@ export function Reset({ onDone }: { onDone: (me: Me) => void }) {
     setBusy(true);
     setError('');
     try {
-      const { data, error: otpErr } = await supabase.auth.verifyOtp({ type: 'recovery', token_hash: tokenHash });
-      if (otpErr || !data.user) throw new Error('This reset link has expired or was already used. Ask for a new one.');
-      const { error: upErr } = await supabase.auth.updateUser({ password });
-      if (upErr) throw new Error('That password wasn’t accepted. Try a longer one.');
-      const me = await loadProfile(data.user.id);
+      await resetPassword(token, password);
+      // A reset doesn't sign anyone in: do it now with the new password.
+      const me = await signIn(email, password).catch(async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Your password is set. Sign in with it.');
+        return loadProfile(user.id);
+      });
       saveMe(me);
       onDone(me);
     } catch (err) {
@@ -31,9 +38,10 @@ export function Reset({ onDone }: { onDone: (me: Me) => void }) {
   return (
     <AuthPage title="New password" lede="Choose a new password for Lull.">
       <form class="form" onSubmit={submit}>
+        <Field label="Your email" type="email" autocomplete="email" value={email} onInput={setEmail} />
         <Field label="New password (10+ characters)" type="password" autocomplete="new-password" minLength={10} value={password} onInput={setPassword} />
         {error && <span class="error" role="alert">{error}</span>}
-        <button class="btn-primary" type="submit" disabled={busy || !tokenHash}>{busy ? 'Saving…' : 'Save and sign in'}</button>
+        <button class="btn-primary" type="submit" disabled={busy || !token}>{busy ? 'Saving…' : 'Save and sign in'}</button>
       </form>
     </AuthPage>
   );

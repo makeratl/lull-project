@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { handle, HttpError, guardIp, ok, parse, supabaseAdmin } from './_lib/http.js';
+import { authFetch, handle, HttpError, guardIp, ok, parse, sql } from './_lib/http.js';
 import { isValidCode, normalizeCode } from '../shared/codes.js';
 
 const body = z.object({
@@ -10,36 +10,37 @@ const body = z.object({
 });
 
 /**
- * Invite-gated sign-up: create the auth user, then redeem atomically; undo on failure.
- * The browser signs in with the same credentials afterwards (its session lives in localStorage).
+ * Invite-gated sign-up: create the Neon Auth user, then redeem atomically; undo on failure.
+ * The browser signs in with the same credentials afterwards (through /api/auth, so its session cookie is Lull's).
  */
 export const POST = handle(async req => {
   await guardIp(req, 'signup');
   const { code, name, email, password } = await parse(req, body);
   if (!isValidCode(code)) throw new HttpError(400, 'bad_format');
-  const admin = supabaseAdmin();
-
-  const { data: check } = await admin.rpc('check_invitation', { p_code: normalizeCode(code) });
-  const inv = (check as { status: string }[] | null)?.[0];
+  const [inv] = (await sql`select * from public.check_invitation(${normalizeCode(code)})`) as { status: string }[];
   if (!inv) throw new HttpError(404, 'not_found');
   if (inv.status !== 'open') throw new HttpError(409, inv.status === 'revoked' || inv.status === 'expired' ? inv.status : 'used');
 
-  const { data: created, error: createErr } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { name } });
-  if (createErr || !created.user) {
-    if (/already|registered|exists/i.test(createErr?.message ?? '')) throw new HttpError(409, 'email_taken');
-    if (/password/i.test(createErr?.message ?? '')) throw new HttpError(400, 'weak_password');
-    throw createErr ?? new Error('createUser failed');
+  // The server-side sign-up's session is thrown away; the browser signs in for its own.
+  const created = await authFetch(req, 'sign-up/email', { email, password, name });
+  const userId = (created.data.user as { id?: string } | undefined)?.id;
+  if (!created.ok || !userId) {
+    const msg = `${created.data.code ?? ''} ${created.data.message ?? ''}`;
+    if (/already|exists/i.test(msg)) throw new HttpError(409, 'email_taken');
+    if (/password/i.test(msg)) throw new HttpError(400, 'weak_password');
+    throw new Error(`sign-up failed: ${created.status} ${msg}`);
   }
+  await sql`update neon_auth."user" set "emailVerified" = true where id = ${userId}`;
 
-  const { data: profile, error: redeemErr } = await admin.rpc('redeem_invitation', {
-    p_code: normalizeCode(code), p_user: created.user.id, p_name: name, p_email: email,
-  });
-  if (redeemErr) {
-    await admin.auth.admin.deleteUser(created.user.id);
-    if (/used/.test(redeemErr.message)) throw new HttpError(409, 'used');
-    if (/expired/.test(redeemErr.message)) throw new HttpError(409, 'expired');
-    if (/not_found/.test(redeemErr.message)) throw new HttpError(404, 'not_found');
-    throw redeemErr;
+  try {
+    const [profile] = await sql`select * from public.redeem_invitation(${normalizeCode(code)}, ${userId}::uuid, ${name}, ${email})`;
+    return ok({ user: profile }, 201);
+  } catch (e) {
+    await sql`delete from neon_auth."user" where id = ${userId}`;   // its sessions and account cascade
+    const m = e instanceof Error ? e.message : '';
+    if (/used/.test(m)) throw new HttpError(409, 'used');
+    if (/expired/.test(m)) throw new HttpError(409, 'expired');
+    if (/not_found/.test(m)) throw new HttpError(404, 'not_found');
+    throw e;
   }
-  return ok({ user: profile }, 201);
 });
