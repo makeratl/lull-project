@@ -8,7 +8,8 @@ import { loadProfile, resetPassword, saveMe, signIn, supabase, type Me } from '.
  */
 export function Reset({ onDone }: { onDone: (me: Me) => void }) {
   const params = new URLSearchParams(location.search);
-  const token = params.get('token') ?? '';
+  // The token may also come after '#': fragments survive login redirects and never reach server logs.
+  const token = params.get('token') ?? new URLSearchParams(location.hash.slice(1)).get('token') ?? '';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
